@@ -1,9 +1,7 @@
 """
-CyberFeed v11
-- Feed UI: full HTML in st.components (looks great)
-- Reader trigger: window.top.location.search (same-origin, works on Streamlit Cloud)
-- Reader render: pure Streamlit markdown (server-side fetch, works on Cloud)
-- Toolbar, cards, ticker, tabs, sources: all in HTML iframe
+CyberFeed v12 — Reliable reader on Streamlit Cloud
+Bridge: JS iframe → localStorage → st_javascript polls → Python rerun
+No window.top, no localhost, no query params from JS.
 """
 
 import streamlit as st
@@ -15,6 +13,7 @@ import re
 import concurrent.futures
 import json
 from urllib.parse import unquote
+from streamlit_javascript import st_javascript
 
 st.set_page_config(
     page_title="CyberFeed",
@@ -23,7 +22,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Hide Streamlit chrome completely ─────────────────────────────────────────
 st.markdown("""
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -44,6 +42,15 @@ header[data-testid="stHeader"],
 .stStatusWidget,[data-testid="stToolbar"]{display:none!important;}
 [data-testid="stVerticalBlock"]{gap:0!important;}
 iframe{border:none!important;display:block!important;width:100%!important;}
+.stButton>button{
+  background:rgba(0,194,255,.1)!important;
+  border:1px solid rgba(0,194,255,.3)!important;
+  border-radius:7px!important;color:#00C2FF!important;
+  font-family:'JetBrains Mono',monospace!important;
+  font-size:11px!important;font-weight:700!important;
+  padding:5px 16px!important;
+}
+.stButton>button:hover{background:rgba(0,194,255,.25)!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,7 +76,7 @@ FEEDS = [
     dict(name="HackerOne",            url="https://hackerone.com/hacktivity.rss",                         cat="CVE",             color="#FF6B35", icon="🏆"),
 ]
 
-# ── HELPERS ───────────────────────────────────────────────────────────────────
+# ── DATA FUNCTIONS ────────────────────────────────────────────────────────────
 def parse_date(entry):
     for a in ("published_parsed","updated_parsed","created_parsed"):
         v = getattr(entry, a, None)
@@ -87,13 +94,12 @@ def time_ago(dt):
     return f"{d}d ago" if d<30 else dt.strftime("%b %d")
 
 def clean(txt):
-    txt=re.sub(r'<[^>]+',' ',txt or '')
-    txt=re.sub(r'\s+',' ',txt).strip()
+    txt=re.sub(r'<[^>]+',' ',txt or ''); txt=re.sub(r'\s+',' ',txt).strip()
     return txt[:260]+"…" if len(txt)>260 else txt
 
 def fetch_one(feed):
     try:
-        r=requests.get(feed["url"],timeout=8,headers={"User-Agent":"CyberFeed/11.0"})
+        r=requests.get(feed["url"],timeout=8,headers={"User-Agent":"CyberFeed/12.0"})
         r.raise_for_status()
         parsed=feedparser.parse(r.text)
         out=[]
@@ -103,8 +109,7 @@ def fetch_one(feed):
                 title=(e.get("title") or "Untitled").strip(),
                 url=e.get("link","#"),
                 summary=clean(e.get("summary") or e.get("description") or ""),
-                src=feed["name"],cat=feed["cat"],
-                color=feed["color"],icon=feed["icon"],
+                src=feed["name"],cat=feed["cat"],color=feed["color"],icon=feed["icon"],
                 ts=int(dt.timestamp()),ago=time_ago(dt),
                 fresh=(datetime.now(timezone.utc)-dt).total_seconds()<14400,
             ))
@@ -119,12 +124,10 @@ def fetch_all():
         futs={pool.submit(fetch_one,f):f["name"] for f in FEEDS}
         done,pending=concurrent.futures.wait(futs,timeout=20)
         for f in done:
-            items,err=f.result()
-            arts.extend(items)
+            items,err=f.result(); arts.extend(items)
             if err: errs.append(err)
         for f in pending:
-            errs.append(f"{futs[f]}: timeout")
-            f.cancel()
+            errs.append(f"{futs[f]}: timeout"); f.cancel()
     arts.sort(key=lambda x:x["ts"],reverse=True)
     return arts,errs
 
@@ -139,7 +142,7 @@ def fetch_article(url:str)->dict:
         text=trafilatura.extract(r.text,include_comments=False,include_tables=True,
                                   favor_recall=True,output_format="txt")
         if not text or len(text.strip())<80:
-            return {"ok":False,"error":"Content could not be extracted. This site may use JavaScript rendering or require a subscription."}
+            return {"ok":False,"error":"Content could not be extracted. The site may require JavaScript or a subscription."}
         paras=[p.strip() for p in text.split("\n") if p.strip()]
         return {"ok":True,"paragraphs":paras,"word_count":len(text.split())}
     except requests.exceptions.Timeout:
@@ -149,57 +152,76 @@ def fetch_article(url:str)->dict:
     except Exception as e:
         return {"ok":False,"error":str(e)[:120]}
 
-# ── LOAD DATA ─────────────────────────────────────────────────────────────────
+# ── SESSION STATE ─────────────────────────────────────────────────────────────
+for k,v in [("reader_url",None),("reader_title",""),("reader_src",""),("reader_color","#00C2FF")]:
+    if k not in st.session_state: st.session_state[k]=v
+
+# ── LOAD FEED DATA ────────────────────────────────────────────────────────────
 with st.spinner("Fetching security feeds…"):
     articles, errors = fetch_all()
 
-# ── READ QUERY PARAMS ─────────────────────────────────────────────────────────
-qp           = st.query_params
-reader_url   = unquote(qp.get("read",   ""))
-reader_title = unquote(qp.get("rtitle", ""))
-reader_src   = unquote(qp.get("rsrc",   ""))
-reader_color = unquote(qp.get("rcolor", "#00C2FF"))
-
 now_str = datetime.now().strftime("%d %b %Y %H:%M")
+articles_json = json.dumps(articles)
+errors_json   = json.dumps(errors)
+feed_count    = len(FEEDS)
+reader_meta   = json.dumps([
+    {"url":a["url"],"title":a["title"][:200],"src":a["src"],"color":a["color"]}
+    for a in articles
+])
+
+# ── JS BRIDGE: read click signal from localStorage ────────────────────────────
+# The iframe JS writes to localStorage when user clicks "Read here".
+# st_javascript polls localStorage and returns the value to Python.
+# This is the only cross-iframe communication method that works on Streamlit Cloud.
+clicked_raw = st_javascript("""
+(function() {
+    var val = localStorage.getItem('cf_read_request');
+    if (val) {
+        localStorage.removeItem('cf_read_request');
+        return val;
+    }
+    return null;
+})()
+""")
+
+if clicked_raw and isinstance(clicked_raw, str) and clicked_raw.startswith("{"):
+    try:
+        data = json.loads(clicked_raw)
+        if data.get("url"):
+            st.session_state.reader_url   = data.get("url","")
+            st.session_state.reader_title = data.get("title","")
+            st.session_state.reader_src   = data.get("src","")
+            st.session_state.reader_color = data.get("color","#00C2FF")
+            st.rerun()
+    except Exception:
+        pass
+
+import streamlit.components.v1 as components
 
 # ═══════════════════════════════════════════════════════════
-# READER MODE
+# READER
 # ═══════════════════════════════════════════════════════════
-if reader_url:
-    # Back button — native Streamlit, always works
-    if st.button("← Back to feed", key="back_btn"):
-        st.query_params.clear()
-        st.rerun()
-
-    color = reader_color
-    url_s = reader_url.replace('"','%22')
-    title_s = reader_title.replace('<','&lt;').replace('>','&gt;').replace('&','&amp;')
+if st.session_state.reader_url:
+    color = st.session_state.reader_color
+    url_s = st.session_state.reader_url.replace('"','%22')
+    title_s = (st.session_state.reader_title
+               .replace('&','&amp;').replace('<','&lt;').replace('>','&gt;'))
 
     st.markdown(f"""
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-    .stButton>button{{
-        background:rgba(0,194,255,.1)!important;
-        border:1px solid rgba(0,194,255,.35)!important;
-        border-radius:7px!important;color:#00C2FF!important;
-        font-family:'JetBrains Mono',monospace!important;
-        font-size:11px!important;font-weight:700!important;
-        padding:6px 16px!important;margin:10px 0 16px!important;
-    }}
-    </style>
     <div style="background:#0D1220;border:1px solid {color}33;border-radius:12px;
-        overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);margin-bottom:4px;">
+        overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);margin-bottom:6px;">
         <div style="background:linear-gradient(135deg,{color}18,{color}05);
-            border-bottom:1px solid {color}22;padding:20px 28px;
+            border-bottom:1px solid {color}22;padding:18px 24px 16px;
             display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
-            <div style="flex:1">
+            <div style="flex:1;">
                 <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
                     font-weight:700;letter-spacing:2px;color:{color};
-                    text-transform:uppercase;margin-bottom:10px;">{reader_src}</div>
-                <div style="font-size:20px;font-weight:800;color:#E8F0FB;
+                    text-transform:uppercase;margin-bottom:8px;">{st.session_state.reader_src}</div>
+                <div style="font-size:19px;font-weight:800;color:#E8F0FB;
                     line-height:1.4;font-family:'Inter',sans-serif;">{title_s}</div>
             </div>
-            <a href="{url_s}" target="_blank" style="flex-shrink:0;margin-top:4px;
+            <a href="{url_s}" target="_blank" style="flex-shrink:0;margin-top:2px;
                 font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
                 color:{color};text-decoration:none;padding:7px 14px;
                 border:1px solid {color}44;border-radius:7px;background:{color}12;
@@ -207,63 +229,55 @@ if reader_url:
         </div>
     """, unsafe_allow_html=True)
 
+    if st.button("← Back to feed", key="back_btn"):
+        st.session_state.reader_url = None
+        st.rerun()
+
     with st.spinner("Extracting article…"):
-        content = fetch_article(reader_url)
+        content = fetch_article(st.session_state.reader_url)
 
     if content["ok"]:
         wc = content["word_count"]
         rm = max(1, round(wc/200))
         st.markdown(f"""
-        <div style="padding:20px 28px 4px;">
+        <div style="padding:16px 24px 4px;">
         <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
-            color:rgba(208,220,240,.28);letter-spacing:.8px;margin-bottom:20px;">
+            color:rgba(208,220,240,.28);letter-spacing:.8px;margin-bottom:18px;">
             {wc:,} words · ~{rm} min read</div>""", unsafe_allow_html=True)
 
         for p in content["paragraphs"]:
             p_e = p.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
             is_h = len(p)<100 and not p.endswith(('.', ',', ':')) and len(p)>8 and not p[0].islower()
             if is_h:
-                st.markdown(f'<div style="font-family:Inter,sans-serif;font-size:17px;font-weight:700;color:#D0DCF0;margin:26px 28px 10px;line-height:1.4;">{p_e}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="font-family:Inter,sans-serif;font-size:16px;font-weight:700;color:#D0DCF0;margin:22px 24px 8px;line-height:1.4;">{p_e}</div>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<p style="font-family:Inter,sans-serif;font-size:14px;color:rgba(208,220,240,.78);line-height:1.9;margin:0 28px 14px;">{p_e}</p>', unsafe_allow_html=True)
+                st.markdown(f'<p style="font-family:Inter,sans-serif;font-size:14px;color:rgba(208,220,240,.78);line-height:1.9;margin:0 24px 13px;">{p_e}</p>', unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.markdown(f"""
-        <div style="text-align:center;padding:52px 24px;">
+        <div style="text-align:center;padding:48px 24px;">
             <div style="font-size:40px;opacity:.2;margin-bottom:14px;">📄</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(208,220,240,.3);margin-bottom:8px;">
-                Could not extract content</div>
-            <div style="font-family:Inter,sans-serif;font-size:11px;color:rgba(208,220,240,.25);
-                max-width:480px;margin:0 auto 20px;line-height:1.6;">{content['error']}</div>
-            <a href="{url_s}" target="_blank" style="font-family:Inter,sans-serif;font-size:12px;
-                color:{color};text-decoration:none;padding:9px 22px;
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+                color:rgba(208,220,240,.3);margin-bottom:8px;">Could not extract content</div>
+            <div style="font-family:Inter,sans-serif;font-size:11px;
+                color:rgba(208,220,240,.22);max-width:480px;margin:0 auto 20px;line-height:1.6;">
+                {content['error']}</div>
+            <a href="{url_s}" target="_blank" style="font-family:Inter,sans-serif;
+                font-size:12px;color:{color};text-decoration:none;padding:9px 22px;
                 border:1px solid {color}44;border-radius:8px;background:{color}12;">
                 Open original in browser →</a>
         </div>""", unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)  # close card
-
-    # Show feed below reader in compact mode
-    feed_height = 520
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("---")
+    feed_height = 500
 else:
     feed_height = 920
 
 # ═══════════════════════════════════════════════════════════
-# FEED HTML (full iframe — beautiful layout, no restrictions)
+# FEED HTML IFRAME
 # ═══════════════════════════════════════════════════════════
-import streamlit.components.v1 as components
-
-articles_json = json.dumps(articles)
-errors_json   = json.dumps(errors)
-feed_count    = len(FEEDS)
-
-# Article metadata for reader navigation
-reader_meta = json.dumps([
-    {"url":a["url"],"title":a["title"][:200],"src":a["src"],"color":a["color"]}
-    for a in articles
-])
-
 HTML = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -285,19 +299,17 @@ body.arctic{{--bg:#EEF2FA;--sf:#FFF;--sf2:#F5F8FF;--sf3:#E8EEF8;--bd:rgba(0,0,0,
 
 body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--tx);width:100vw;height:100vh;display:flex;flex-direction:column;overflow:hidden;}}
 
-/* NAVBAR */
 .nav{{flex-shrink:0;background:var(--sf);border-bottom:1px solid var(--bd);height:46px;display:flex;align-items:center;padding:0 18px;box-shadow:0 1px 20px rgba(0,0,0,.4);}}
 .logo{{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;letter-spacing:2px;color:var(--ac);display:flex;align-items:center;gap:8px;user-select:none;flex-shrink:0;}}
 .dot{{width:7px;height:7px;border-radius:50%;background:var(--ac);box-shadow:0 0 8px var(--ac);animation:blink 2s ease-in-out infinite;}}
 @keyframes blink{{0%,100%{{opacity:1;transform:scale(1)}}50%{{opacity:.2;transform:scale(.55)}}}}
 .stats{{display:flex;align-items:center;margin-left:18px;flex:1;overflow:hidden;}}
-.stat{{display:flex;align-items:baseline;gap:4px;padding:0 12px;border-right:1px solid var(--bd);flex-shrink:0;}}
+.stat{{display:flex;align-items:baseline;gap:4px;padding:0 11px;border-right:1px solid var(--bd);flex-shrink:0;}}
 .sn{{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--ac);}}
 .sl{{font-family:'Inter',sans-serif;font-size:9px;font-weight:500;color:var(--fnt);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;}}
 .c-r{{color:#FF4B6E!important}}.c-a{{color:#FF8C00!important}}.c-g{{color:#00D68F!important}}.c-p{{color:#A78BFA!important}}
 .nav-time{{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--fnt);flex-shrink:0;}}
 
-/* TICKER */
 .ticker{{flex-shrink:0;background:var(--sf3);border-bottom:1px solid var(--bd);height:26px;display:flex;align-items:center;overflow:hidden;}}
 .t-lbl{{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:var(--ac);letter-spacing:2px;padding:0 11px;flex-shrink:0;border-right:1px solid var(--bd);white-space:nowrap;}}
 .t-track{{flex:1;overflow:hidden;}}
@@ -307,53 +319,45 @@ body{{font-family:'Inter',sans-serif;background:var(--bg);color:var(--tx);width:
 .t-item{{font-family:'Inter',sans-serif;font-size:11px;color:var(--dim);margin-right:32px;display:inline;}}
 .t-sep{{color:var(--ac);opacity:.2;margin-right:32px;display:inline;}}
 
-/* TOOLBAR */
 .toolbar{{flex-shrink:0;background:var(--sf2);border-bottom:1px solid var(--bd);padding:7px 18px;display:flex;align-items:center;gap:8px;}}
-.search-wrap{{flex:1;min-width:0;position:relative;}}
-.search-wrap svg{{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.3;pointer-events:none;}}
-#searchInput{{width:100%;background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-family:'Inter',sans-serif;font-size:12px;padding:7px 10px 7px 32px;height:34px;outline:none;transition:border-color .18s,box-shadow .18s;}}
-#searchInput:focus{{border-color:var(--bdh);box-shadow:0 0 0 2px var(--gw);}}
-#searchInput::placeholder{{color:var(--fnt);}}
-select{{background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-family:'Inter',sans-serif;font-size:11px;padding:0 26px 0 10px;height:34px;outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;flex-shrink:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23666'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;transition:border-color .18s;}}
+.sw{{flex:1;min-width:0;position:relative;}}
+.sw svg{{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.3;pointer-events:none;}}
+#si{{width:100%;background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-family:'Inter',sans-serif;font-size:12px;padding:7px 10px 7px 32px;height:34px;outline:none;transition:border-color .18s,box-shadow .18s;}}
+#si:focus{{border-color:var(--bdh);box-shadow:0 0 0 2px var(--gw);}}
+#si::placeholder{{color:var(--fnt);}}
+select{{background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-family:'Inter',sans-serif;font-size:11px;padding:0 26px 0 10px;height:34px;outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;flex-shrink:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23666'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;}}
 select:focus{{border-color:var(--bdh);}}
-#catSel{{width:130px;}}#themeSel{{width:128px;}}
+#cs{{width:130px;}}#ts{{width:128px;}}
 .btn{{background:var(--gw);border:1px solid var(--bdh);border-radius:7px;color:var(--ac);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;height:34px;padding:0 13px;cursor:pointer;transition:all .18s;flex-shrink:0;white-space:nowrap;}}
 .btn:hover{{background:var(--ac);color:var(--bg);box-shadow:0 0 14px var(--gw);}}
 
-/* TABS */
 .tabs{{flex-shrink:0;background:var(--sf);border-bottom:1px solid var(--bd);padding:0 18px;display:flex;overflow-x:auto;}}
 .tabs::-webkit-scrollbar{{height:2px;}}
 .tab{{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:9px 14px 7px;color:var(--fnt);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .18s;}}
 .tab:hover{{color:var(--dim);background:var(--gw);}}.tab.on{{color:var(--ac);border-bottom-color:var(--ac);background:var(--gw);}}
 .tab-n{{font-family:'JetBrains Mono',monospace;font-size:8px;opacity:.35;margin-left:3px;}}
 
-/* SOURCE BAR */
 .src-bar{{flex-shrink:0;background:var(--bg);border-bottom:1px solid var(--bd);padding:5px 18px;display:flex;align-items:center;gap:5px;overflow-x:auto;white-space:nowrap;}}
 .src-bar::-webkit-scrollbar{{height:2px;}}.src-bar::-webkit-scrollbar-thumb{{background:var(--bdh);}}
 .src-lbl{{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--fnt);letter-spacing:1.5px;text-transform:uppercase;flex-shrink:0;}}
 .pill{{font-family:'Inter',sans-serif;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--bd);color:var(--dim);cursor:pointer;transition:all .18s;flex-shrink:0;}}
 .pill:hover{{border-color:var(--bdh);color:var(--tx);}}.pill.on{{border-color:var(--bdh);background:var(--gw);color:var(--ac);}}
 
-/* MAIN */
 .main{{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 18px 20px;}}
 .main::-webkit-scrollbar{{width:4px;}}.main::-webkit-scrollbar-thumb{{background:var(--bdh);border-radius:2px;}}
 .feed-hdr{{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;}}
 .feed-lbl{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--fnt);text-transform:uppercase;letter-spacing:2px;display:flex;align-items:center;gap:10px;}}
 .feed-lbl::after{{content:'';flex:1;height:1px;background:var(--bd);min-width:20px;}}
-
-/* PAGINATION */
 .pag{{display:flex;align-items:center;gap:4px;flex-shrink:0;}}
 .pg-b{{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;width:26px;height:26px;border-radius:6px;border:1px solid var(--bd);background:var(--sf);color:var(--dim);cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;}}
 .pg-b:hover:not([disabled]){{border-color:var(--bdh);color:var(--ac);background:var(--gw);}}.pg-b.on{{border-color:var(--bdh);background:var(--gw);color:var(--ac);}}.pg-b[disabled]{{opacity:.2;cursor:default;}}
 .pg-i{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--fnt);padding:0 2px;}}
 
-/* GRID */
 .grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}}
 @media(max-width:1100px){{.grid{{grid-template-columns:repeat(2,1fr);}}}}
 @media(max-width:680px){{.grid{{grid-template-columns:1fr;}}}}
 
-/* CARD */
-.card{{background:var(--sf);border:1px solid var(--bd);border-left:3px solid var(--card-color,var(--ac));border-radius:9px;padding:14px 15px 12px;transition:transform .2s,border-color .2s,box-shadow .2s;}}
+.card{{background:var(--sf);border:1px solid var(--bd);border-left:3px solid var(--cc,var(--ac));border-radius:9px;padding:14px 15px 12px;transition:transform .2s,border-color .2s,box-shadow .2s;}}
 .card:hover{{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.45);border-color:var(--bdh);}}
 .c-top{{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}}
 .badge{{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid;white-space:nowrap;flex-shrink:0;}}
@@ -367,10 +371,9 @@ select:focus{{border-color:var(--bdh);}}
 .c-btns{{display:flex;gap:5px;align-items:center;}}
 .read-btn{{font-family:'Inter',sans-serif;font-size:10px;font-weight:500;color:var(--tx);padding:3px 9px;border:1px solid var(--bd);border-radius:5px;background:var(--sf2);cursor:pointer;transition:all .15s;white-space:nowrap;}}
 .read-btn:hover{{border-color:var(--bdh);color:var(--ac);background:var(--gw);}}
-.open-btn{{font-family:'Inter',sans-serif;font-size:10px;font-weight:500;color:var(--ac);text-decoration:none;padding:3px 9px;border:1px solid var(--bdh);border-radius:5px;background:var(--gw);transition:all .15s;white-space:nowrap;}}
+.open-btn{{font-family:'Inter',sans-serif;font-size:10px;font-weight:500;color:var(--ac);text-decoration:none;padding:3px 9px;border:1px solid var(--bdh);border-radius:5px;background:var(--gw);transition:all .15s;}}
 .open-btn:hover{{background:var(--ac);color:var(--bg);}}
 
-/* ERROR */
 .err-panel{{background:rgba(255,75,110,.05);border:1px solid rgba(255,75,110,.18);border-radius:7px;overflow:hidden;margin-bottom:10px;}}
 .err-hdr{{font-family:'JetBrains Mono',monospace;font-size:10px;color:#FF4B6E;padding:7px 11px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;}}
 .err-body{{padding:0 11px 7px;display:none;}}.err-body.open{{display:block;}}
@@ -381,28 +384,25 @@ select:focus{{border-color:var(--bdh);}}
 </head>
 <body>
 
-<!-- NAVBAR -->
 <nav class="nav">
   <div class="logo"><div class="dot"></div>CYBERFEED</div>
   <div class="stats" id="stats"></div>
   <div class="nav-time" id="navTime">{now_str}</div>
 </nav>
 
-<!-- TICKER -->
 <div class="ticker">
   <div class="t-lbl">LIVE</div>
   <div class="t-track"><div class="t-inner" id="tInner"></div></div>
 </div>
 
-<!-- TOOLBAR -->
 <div class="toolbar">
-  <div class="search-wrap">
+  <div class="sw">
     <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
       <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
     </svg>
-    <input id="searchInput" type="text" placeholder="Search headlines, CVEs, threat actors, APTs…" autocomplete="off">
+    <input id="si" type="text" placeholder="Search headlines, CVEs, threat actors, APTs…" autocomplete="off">
   </div>
-  <select id="catSel">
+  <select id="cs">
     <option value="All">All Categories</option>
     <option value="Threats">Threats</option>
     <option value="Vulnerabilities">Vulnerabilities</option>
@@ -410,7 +410,7 @@ select:focus{{border-color:var(--bdh);}}
     <option value="CVE">CVE</option>
     <option value="Analysis">Analysis</option>
   </select>
-  <select id="themeSel">
+  <select id="ts">
     <option value="">⬤ Midnight</option>
     <option value="obsidian">⬤ Obsidian</option>
     <option value="terminal">⬤ Terminal</option>
@@ -420,13 +420,9 @@ select:focus{{border-color:var(--bdh);}}
   <button class="btn" onclick="doRefresh()">↻ REFRESH</button>
 </div>
 
-<!-- TABS -->
 <div class="tabs" id="tabs"></div>
-
-<!-- SOURCE BAR -->
 <div class="src-bar" id="srcBar"><span class="src-lbl">Sources</span></div>
 
-<!-- MAIN -->
 <div class="main" id="mainArea">
   <div id="errPanel"></div>
   <div class="feed-hdr">
@@ -446,7 +442,6 @@ const PER   = 15;
 const CAT_COLORS={{Threats:'#FF4B6E',Vulnerabilities:'#00C2FF',Breaches:'#FF8C00',CVE:'#E74C3C',Analysis:'#A78BFA'}};
 const CAT_ICO={{Threats:'🔴',CVE:'🟠',Breaches:'🟡',Vulnerabilities:'🔵',Analysis:'🟣'}};
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-
 const S={{search:'',cat:'All',srcs:new Set(),page:0}};
 
 function filtered(){{
@@ -502,10 +497,10 @@ function renderSrcBar(){{
     srcs.map(s=>`<span class="pill ${{S.srcs.has(s)?'on':''}}" onclick="toggleSrc('${{esc(s)}}')">${{esc(s)}}</span>`).join('');
 }}
 
-function cardHTML(a,globalIdx){{
+function cardHTML(a,gi){{
   const c=a.color,cc=CAT_COLORS[a.cat]||'#888';
   const nb=a.fresh?'<span class="new-b">NEW</span>':'';
-  return `<div class="card" style="--card-color:${{c}}">
+  return `<div class="card" style="--cc:${{c}}">
   <div class="c-top">
     <div class="badge" style="color:${{c}};border-color:${{c}}44;background:${{c}}14">${{a.icon}} ${{esc(a.src)}}</div>
     <div class="c-ago">${{esc(a.ago)}}</div>
@@ -515,7 +510,7 @@ function cardHTML(a,globalIdx){{
   <div class="c-foot">
     <span class="cat-p" style="color:${{cc}};background:${{cc}}18">${{a.cat}}</span>
     <div class="c-btns">
-      <button class="read-btn" onclick="openReader(${{globalIdx}})">📖 Read here</button>
+      <button class="read-btn" onclick="openReader(${{gi}})">📖 Read here</button>
       <a class="open-btn" href="${{esc(a.url)}}" target="_blank" rel="noopener">↗ Open</a>
     </div>
   </div>
@@ -556,30 +551,18 @@ function renderGrid(){{
   document.getElementById('grid').innerHTML=page.map((a,i)=>cardHTML(a,window._gidx[i])).join('');
 }}
 
-// ── READER: navigate top window with query params ─────────────────────────────
-// window.top works because Streamlit serves everything from same origin.
-// If blocked, falls back to window.location (navigates the iframe URL, less ideal).
-function openReader(globalIdx){{
-  const m=RMETA[globalIdx];
+// ── READER BRIDGE: write to localStorage, st_javascript will pick it up ──────
+function openReader(gi){{
+  const m=RMETA[gi];
   if(!m)return;
-  const p=new URLSearchParams({{
-    read:   encodeURIComponent(m.url),
-    rtitle: encodeURIComponent(m.title),
-    rsrc:   encodeURIComponent(m.src),
-    rcolor: encodeURIComponent(m.color),
-  }});
-  const qs='?'+p.toString();
-  try{{
-    // Try top window first (works when same-origin)
-    if(window.top && window.top.location && window.top !== window){{
-      window.top.location.search=qs;
-    }} else {{
-      window.location.search=qs;
-    }}
-  }} catch(e){{
-    // If top is blocked (cross-origin), fall back to location
-    window.location.search=qs;
-  }}
+  // Write request to localStorage — Python polls this via st_javascript
+  localStorage.setItem('cf_read_request', JSON.stringify({{
+    url:m.url, title:m.title, src:m.src, color:m.color
+  }}));
+  // Signal Streamlit to rerun by posting to parent
+  // st_javascript runs on every Streamlit rerun cycle and checks localStorage
+  // We trigger a rerun by navigating to the same URL (no-op visually but triggers rerun)
+  window.parent.postMessage({{type:'streamlit:forceRerun'}},'*');
 }}
 
 function setCat(c){{S.cat=c;S.page=0;renderTabs();renderGrid();}}
@@ -589,14 +572,12 @@ function goPage(p){{
   renderGrid();document.getElementById('mainArea').scrollTop=0;
 }}
 function toggleSrc(s){{S.srcs.has(s)?S.srcs.delete(s):S.srcs.add(s);S.page=0;renderSrcBar();renderGrid();}}
-function doRefresh(){{
-  try{{if(window.top&&window.top!==window)window.top.location.search='';else window.location.search='';}}catch(e){{window.location.search='';}}
-}}
+function doRefresh(){{localStorage.removeItem('cf_read_request');location.reload();}}
 
-document.getElementById('themeSel').addEventListener('change',function(){{document.body.className=this.value;}});
-let st_t;
-document.getElementById('searchInput').addEventListener('input',function(){{
-  clearTimeout(st_t);st_t=setTimeout(()=>{{S.search=this.value;S.page=0;renderGrid();}},200);
+document.getElementById('ts').addEventListener('change',function(){{document.body.className=this.value;}});
+let q_t;
+document.getElementById('si').addEventListener('input',function(){{
+  clearTimeout(q_t);q_t=setTimeout(()=>{{S.search=this.value;S.page=0;renderGrid();}},200);
 }});
 setInterval(()=>{{
   const n=new Date();
