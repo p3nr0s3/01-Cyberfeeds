@@ -1,16 +1,11 @@
 """
-CyberFeed v13
-- Pure Streamlit native (no iframe for interaction)
-- Beautiful CSS-styled cards via st.markdown
-- st.button for "Read here" — 100% reliable on Streamlit Cloud
-- Navbar, ticker, tabs, source pills all via st.markdown HTML
-- Reader: server-side fetch via trafilatura
+CyberFeed v14 — Clean feed, no reader feature.
+Full HTML iframe UI for best appearance.
 """
 
 import streamlit as st
 import feedparser
 import requests
-import trafilatura
 from datetime import datetime, timezone
 import re
 import concurrent.futures
@@ -23,43 +18,28 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── SESSION STATE ─────────────────────────────────────────────────────────────
-for k, v in [
-    ("reader_url", None), ("reader_title", ""),
-    ("reader_src", ""),   ("reader_color", "#00C2FF"),
-    ("cat", "All"),       ("page", 0),
-    ("src_filter", []),   ("theme", "Midnight"),
-]:
-    if k not in st.session_state:
-        st.session_state[k] = v
-
-# ── THEMES ────────────────────────────────────────────────────────────────────
-T = {
-    "Midnight": dict(bg="#070A12", sf="#0D1220", sf2="#111827", sf3="#0A0F1E",
-        bd="rgba(255,255,255,0.07)", bdh="rgba(0,194,255,0.4)",
-        tx="#D0DCF0", dim="rgba(208,220,240,0.5)", fnt="rgba(208,220,240,0.28)",
-        ac="#00C2FF", gw="rgba(0,194,255,0.13)", nav_shadow="rgba(0,0,0,0.5)"),
-    "Obsidian": dict(bg="#0A0A0A", sf="#141414", sf2="#1C1C1C", sf3="#111111",
-        bd="rgba(255,255,255,0.07)", bdh="rgba(160,120,255,0.4)",
-        tx="#E0D8FF", dim="rgba(224,216,255,0.5)", fnt="rgba(224,216,255,0.25)",
-        ac="#A078FF", gw="rgba(160,120,255,0.13)", nav_shadow="rgba(0,0,0,0.5)"),
-    "Terminal": dict(bg="#010B01", sf="#051505", sf2="#081A08", sf3="#030D03",
-        bd="rgba(0,255,65,0.1)", bdh="rgba(0,255,65,0.4)",
-        tx="#B0FFB8", dim="rgba(176,255,184,0.5)", fnt="rgba(176,255,184,0.25)",
-        ac="#00FF41", gw="rgba(0,255,65,0.1)", nav_shadow="rgba(0,0,0,0.6)"),
-    "Crimson": dict(bg="#0C0608", sf="#180B0E", sf2="#200E12", sf3="#0E0709",
-        bd="rgba(255,255,255,0.06)", bdh="rgba(255,60,80,0.4)",
-        tx="#FFD0D8", dim="rgba(255,208,216,0.5)", fnt="rgba(255,208,216,0.25)",
-        ac="#FF3C50", gw="rgba(255,60,80,0.13)", nav_shadow="rgba(0,0,0,0.5)"),
-    "Arctic": dict(bg="#EEF2FA", sf="#FFFFFF", sf2="#F5F8FF", sf3="#E8EEF8",
-        bd="rgba(0,0,0,0.08)", bdh="rgba(0,100,255,0.4)",
-        tx="#1A2540", dim="rgba(26,37,64,0.55)", fnt="rgba(26,37,64,0.32)",
-        ac="#0064FF", gw="rgba(0,100,255,0.1)", nav_shadow="rgba(0,0,0,0.1)"),
+st.markdown("""
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body,.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"]>.main,
+section[data-testid="stMain"],
+section[data-testid="stMain"]>div,
+[data-testid="block-container"],
+.main .block-container{
+  background:#070A12!important;
+  padding:0!important;margin:0!important;
+  max-width:100%!important;
 }
-
-CAT_COLORS = {"Threats":"#FF4B6E","Vulnerabilities":"#00C2FF","Breaches":"#FF8C00","CVE":"#E74C3C","Analysis":"#A78BFA"}
-CATEGORIES = ["All","Threats","Vulnerabilities","Breaches","CVE","Analysis"]
-PER_PAGE   = 15
+header[data-testid="stHeader"],
+[data-testid="stSidebar"],
+#MainMenu,.stDeployButton,footer,
+.stStatusWidget,[data-testid="stToolbar"]{display:none!important;}
+[data-testid="stVerticalBlock"]{gap:0!important;}
+iframe{border:none!important;display:block!important;width:100%!important;}
+</style>
+""", unsafe_allow_html=True)
 
 # ── FEEDS ─────────────────────────────────────────────────────────────────────
 FEEDS = [
@@ -83,7 +63,7 @@ FEEDS = [
     dict(name="HackerOne",            url="https://hackerone.com/hacktivity.rss",                         cat="CVE",             color="#FF6B35", icon="🏆"),
 ]
 
-# ── DATA FETCH ────────────────────────────────────────────────────────────────
+# ── HELPERS ───────────────────────────────────────────────────────────────────
 def parse_date(entry):
     for a in ("published_parsed","updated_parsed","created_parsed"):
         v = getattr(entry, a, None)
@@ -106,7 +86,7 @@ def clean(txt):
 
 def fetch_one(feed):
     try:
-        r=requests.get(feed["url"],timeout=8,headers={"User-Agent":"CyberFeed/13.0"})
+        r=requests.get(feed["url"],timeout=8,headers={"User-Agent":"CyberFeed/14.0"})
         r.raise_for_status()
         parsed=feedparser.parse(r.text)
         out=[]
@@ -116,440 +96,464 @@ def fetch_one(feed):
                 title=(e.get("title") or "Untitled").strip(),
                 url=e.get("link","#"),
                 summary=clean(e.get("summary") or e.get("description") or ""),
-                src=feed["name"], cat=feed["cat"], color=feed["color"], icon=feed["icon"],
-                ts=int(dt.timestamp()), ago=time_ago(dt),
+                src=feed["name"],cat=feed["cat"],color=feed["color"],icon=feed["icon"],
+                ts=int(dt.timestamp()),ago=time_ago(dt),
                 fresh=(datetime.now(timezone.utc)-dt).total_seconds()<14400,
             ))
-        return out, None
+        return out,None
     except Exception as ex:
-        return [], f"{feed['name']}: {str(ex)[:60]}"
+        return [],f"{feed['name']}: {str(ex)[:60]}"
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300,show_spinner=False)
 def fetch_all():
-    arts, errs = [], []
+    arts,errs=[],[]
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
-        futs = {pool.submit(fetch_one,f): f["name"] for f in FEEDS}
-        done, pending = concurrent.futures.wait(futs, timeout=20)
+        futs={pool.submit(fetch_one,f):f["name"] for f in FEEDS}
+        done,pending=concurrent.futures.wait(futs,timeout=20)
         for f in done:
-            items, err = f.result(); arts.extend(items)
+            items,err=f.result(); arts.extend(items)
             if err: errs.append(err)
         for f in pending:
             errs.append(f"{futs[f]}: timeout"); f.cancel()
-    arts.sort(key=lambda x: x["ts"], reverse=True)
-    return arts, errs
+    arts.sort(key=lambda x:x["ts"],reverse=True)
+    return arts,errs
 
-@st.cache_data(ttl=600, show_spinner=False)
-def fetch_article(url: str) -> dict:
-    try:
-        r = requests.get(url, timeout=12, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-        }, allow_redirects=True)
-        r.raise_for_status()
-        text = trafilatura.extract(r.text, include_comments=False, include_tables=True,
-                                    favor_recall=True, output_format="txt")
-        if not text or len(text.strip()) < 80:
-            return {"ok": False, "error": "Content could not be extracted. The site may require JavaScript or a subscription."}
-        paras = [p.strip() for p in text.split("\n") if p.strip()]
-        return {"ok": True, "paragraphs": paras, "word_count": len(text.split())}
-    except requests.exceptions.Timeout:
-        return {"ok": False, "error": "Request timed out (12s)."}
-    except requests.exceptions.HTTPError as e:
-        return {"ok": False, "error": f"HTTP {e.response.status_code}: {e.response.reason}"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)[:120]}
-
-# ── LOAD DATA ─────────────────────────────────────────────────────────────────
 with st.spinner("Fetching security feeds…"):
     articles, errors = fetch_all()
 
-t = T[st.session_state.theme]
+import streamlit.components.v1 as components
 
-# ── GLOBAL CSS ────────────────────────────────────────────────────────────────
-st.markdown(f"""
+now_str       = datetime.now().strftime("%d %b %Y %H:%M")
+articles_json = json.dumps(articles)
+errors_json   = json.dumps(errors)
+feed_count    = len(FEEDS)
+
+HTML = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0;}}
 
-/* Reset Streamlit */
-html,body,.stApp,[data-testid="stAppViewContainer"],
-[data-testid="stAppViewContainer"]>.main,
-section[data-testid="stMain"],section[data-testid="stMain"]>div,
-[data-testid="block-container"],.main .block-container {{
-  background:{t['bg']}!important;color:{t['tx']}!important;
-  padding:0!important;margin:0!important;max-width:100%!important;
+:root{{
+  --bg:#070A12;--sf:#0D1220;--sf2:#111827;--sf3:#0A0F1E;
+  --bd:rgba(255,255,255,0.07);--bdh:rgba(0,194,255,0.4);
+  --tx:#D0DCF0;--dim:rgba(208,220,240,0.5);--fnt:rgba(208,220,240,0.28);
+  --ac:#00C2FF;--gw:rgba(0,194,255,0.13);
 }}
-.main .block-container{{padding-top:0!important;padding-bottom:0!important;}}
-header[data-testid="stHeader"],[data-testid="stSidebar"],
-#MainMenu,.stDeployButton,footer,.stStatusWidget,
-[data-testid="stToolbar"]{{display:none!important;}}
-[data-testid="stVerticalBlock"]{{gap:0!important;}}
-[data-testid="stHorizontalBlock"]{{gap:6px!important;align-items:stretch!important;padding:0!important;}}
+body.obsidian{{--bg:#0A0A0A;--sf:#141414;--sf2:#1C1C1C;--sf3:#111;--bdh:rgba(160,120,255,.4);--tx:#E0D8FF;--dim:rgba(224,216,255,.5);--fnt:rgba(224,216,255,.25);--ac:#A078FF;--gw:rgba(160,120,255,.13);}}
+body.terminal{{--bg:#010B01;--sf:#051505;--sf2:#081A08;--sf3:#030D03;--bd:rgba(0,255,65,.1);--bdh:rgba(0,255,65,.4);--tx:#B0FFB8;--dim:rgba(176,255,184,.5);--fnt:rgba(176,255,184,.25);--ac:#00FF41;--gw:rgba(0,255,65,.1);}}
+body.crimson{{--bg:#0C0608;--sf:#180B0E;--sf2:#200E12;--sf3:#0E0709;--bdh:rgba(255,60,80,.4);--tx:#FFD0D8;--dim:rgba(255,208,216,.5);--fnt:rgba(255,208,216,.25);--ac:#FF3C50;--gw:rgba(255,60,80,.13);}}
+body.arctic{{--bg:#EEF2FA;--sf:#FFF;--sf2:#F5F8FF;--sf3:#E8EEF8;--bd:rgba(0,0,0,.08);--bdh:rgba(0,100,255,.4);--tx:#1A2540;--dim:rgba(26,37,64,.55);--fnt:rgba(26,37,64,.32);--ac:#0064FF;--gw:rgba(0,100,255,.1);}}
 
-/* All buttons default style */
-.stButton>button {{
-  background:{t['sf2']}!important;
-  border:1px solid {t['bd']}!important;
-  border-radius:6px!important;
-  color:{t['dim']}!important;
-  font-family:'Inter',sans-serif!important;
-  font-size:11px!important;font-weight:500!important;
-  padding:5px 10px!important;
-  width:100%!important;
-  transition:all .18s!important;
-  white-space:nowrap!important;
-  height:30px!important;
-  margin:0!important;
-}}
-.stButton>button:hover {{
-  border-color:{t['bdh']}!important;
-  color:{t['ac']}!important;
-  background:{t['gw']}!important;
+body{{
+  font-family:'Inter',sans-serif;
+  background:var(--bg);color:var(--tx);
+  width:100vw;height:100vh;
+  display:flex;flex-direction:column;
+  overflow:hidden;
 }}
 
-/* Accent buttons (class applied via wrapper div) */
-div[data-btn="accent"] .stButton>button {{
-  background:{t['gw']}!important;
-  border:1px solid {t['bdh']}!important;
-  color:{t['ac']}!important;
-  font-family:'JetBrains Mono',monospace!important;
-  font-size:10px!important;font-weight:700!important;
-  height:34px!important;
+/* NAVBAR */
+.nav{{
+  flex-shrink:0;background:var(--sf);
+  border-bottom:1px solid var(--bd);
+  height:46px;display:flex;align-items:center;
+  padding:0 18px;box-shadow:0 1px 20px rgba(0,0,0,.4);
 }}
-div[data-btn="accent"] .stButton>button:hover {{
-  background:{t['ac']}!important;
-  color:{t['bg']}!important;
-  box-shadow:0 0 14px {t['gw']}!important;
+.logo{{
+  font-family:'JetBrains Mono',monospace;font-size:13px;
+  font-weight:700;letter-spacing:2px;color:var(--ac);
+  display:flex;align-items:center;gap:8px;
+  user-select:none;flex-shrink:0;
 }}
-
-/* Selectbox */
-.stSelectbox label,.stMultiSelect label{{display:none!important;}}
-[data-baseweb="select"]>div {{
-  background:{t['sf2']}!important;border:1px solid {t['bd']}!important;
-  border-radius:7px!important;color:{t['tx']}!important;
-  font-family:'Inter',sans-serif!important;font-size:11px!important;
-  min-height:34px!important;
+.dot{{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--ac);box-shadow:0 0 8px var(--ac);
+  animation:blink 2s ease-in-out infinite;
 }}
-[data-baseweb="select"]>div:focus-within{{border-color:{t['bdh']}!important;box-shadow:0 0 0 2px {t['gw']}!important;}}
-[data-baseweb="popover"] ul{{background:{t['sf']}!important;border:1px solid {t['bd']}!important;}}
-[data-baseweb="popover"] li{{color:{t['tx']}!important;font-family:'Inter',sans-serif!important;font-size:11px!important;}}
-[data-baseweb="popover"] li:hover{{background:{t['gw']}!important;}}
-
-/* Search input */
-.stTextInput label{{display:none!important;}}
-.stTextInput>div>div>input {{
-  background:{t['sf2']}!important;border:1px solid {t['bd']}!important;
-  border-radius:7px!important;color:{t['tx']}!important;
-  font-family:'Inter',sans-serif!important;font-size:12px!important;height:34px!important;
-}}
-.stTextInput>div>div>input:focus{{border-color:{t['bdh']}!important;box-shadow:0 0 0 2px {t['gw']}!important;}}
-.stTextInput>div>div>input::placeholder{{color:{t['fnt']}!important;}}
-
-/* Multiselect */
-.stMultiSelect [data-baseweb="select"]>div{{background:{t['sf2']}!important;border:1px solid {t['bd']}!important;border-radius:7px!important;min-height:34px!important;}}
-span[data-baseweb="tag"]{{background:{t['gw']}!important;border:1px solid {t['bdh']}!important;border-radius:4px!important;color:{t['ac']}!important;}}
-
-/* Divider */
-hr{{border-color:{t['bd']}!important;margin:4px 0!important;}}
-
-/* Expander */
-.streamlit-expanderHeader{{background:{t['sf']}!important;color:{t['fnt']}!important;font-family:'JetBrains Mono',monospace!important;font-size:10px!important;border:1px solid {t['bd']}!important;border-radius:7px!important;}}
-.streamlit-expanderContent{{background:{t['sf2']}!important;border:1px solid {t['bd']}!important;border-top:none!important;padding:8px 12px!important;}}
-
-/* Scrollbar */
-::-webkit-scrollbar{{width:4px;height:4px;}}
-::-webkit-scrollbar-track{{background:{t['bg']};}}
-::-webkit-scrollbar-thumb{{background:{t['bdh']};border-radius:2px;}}
-
-/* Ticker animation */
-@keyframes ticker{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
 @keyframes blink{{0%,100%{{opacity:1;transform:scale(1)}}50%{{opacity:.2;transform:scale(.55)}}}}
+.stats{{display:flex;align-items:center;margin-left:18px;flex:1;overflow:hidden;}}
+.stat{{display:flex;align-items:baseline;gap:4px;padding:0 11px;border-right:1px solid var(--bd);flex-shrink:0;}}
+.sn{{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--ac);}}
+.sl{{font-family:'Inter',sans-serif;font-size:9px;font-weight:500;color:var(--fnt);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;}}
+.c-r{{color:#FF4B6E!important}}.c-a{{color:#FF8C00!important}}.c-g{{color:#00D68F!important}}.c-p{{color:#A78BFA!important}}
+.nav-time{{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--fnt);flex-shrink:0;}}
+
+/* TICKER */
+.ticker{{
+  flex-shrink:0;background:var(--sf3);
+  border-bottom:1px solid var(--bd);
+  height:26px;display:flex;align-items:center;overflow:hidden;
+}}
+.t-lbl{{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:var(--ac);letter-spacing:2px;padding:0 11px;flex-shrink:0;border-right:1px solid var(--bd);white-space:nowrap;}}
+.t-track{{flex:1;overflow:hidden;}}
+.t-inner{{display:inline-block;white-space:nowrap;animation:ticker 100s linear infinite;}}
+.t-inner:hover{{animation-play-state:paused;}}
+@keyframes ticker{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
+.t-item{{font-family:'Inter',sans-serif;font-size:11px;color:var(--dim);margin-right:32px;display:inline;}}
+.t-sep{{color:var(--ac);opacity:.2;margin-right:32px;display:inline;}}
+
+/* TOOLBAR */
+.toolbar{{
+  flex-shrink:0;background:var(--sf2);
+  border-bottom:1px solid var(--bd);
+  padding:7px 18px;display:flex;align-items:center;gap:8px;
+}}
+.sw{{flex:1;min-width:0;position:relative;}}
+.sw svg{{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.3;pointer-events:none;}}
+#si{{
+  width:100%;background:var(--sf);border:1px solid var(--bd);border-radius:7px;
+  color:var(--tx);font-family:'Inter',sans-serif;font-size:12px;
+  padding:7px 10px 7px 32px;height:34px;outline:none;
+  transition:border-color .18s,box-shadow .18s;
+}}
+#si:focus{{border-color:var(--bdh);box-shadow:0 0 0 2px var(--gw);}}
+#si::placeholder{{color:var(--fnt);}}
+select{{
+  background:var(--sf);border:1px solid var(--bd);border-radius:7px;
+  color:var(--tx);font-family:'Inter',sans-serif;font-size:11px;
+  padding:0 26px 0 10px;height:34px;outline:none;cursor:pointer;
+  -webkit-appearance:none;appearance:none;flex-shrink:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23666'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;
+  transition:border-color .18s;
+}}
+select:focus{{border-color:var(--bdh);}}
+#cs{{width:130px;}}#th{{width:128px;}}
+.btn{{
+  background:var(--gw);border:1px solid var(--bdh);border-radius:7px;
+  color:var(--ac);font-family:'JetBrains Mono',monospace;
+  font-size:10px;font-weight:700;height:34px;padding:0 13px;
+  cursor:pointer;transition:all .18s;flex-shrink:0;white-space:nowrap;
+}}
+.btn:hover{{background:var(--ac);color:var(--bg);box-shadow:0 0 14px var(--gw);}}
+
+/* TABS */
+.tabs{{
+  flex-shrink:0;background:var(--sf);
+  border-bottom:1px solid var(--bd);
+  padding:0 18px;display:flex;overflow-x:auto;
+}}
+.tabs::-webkit-scrollbar{{height:2px;}}
+.tab{{
+  font-family:'Inter',sans-serif;font-size:11px;font-weight:500;
+  padding:9px 14px 7px;color:var(--fnt);
+  border-bottom:2px solid transparent;cursor:pointer;
+  white-space:nowrap;transition:all .18s;
+}}
+.tab:hover{{color:var(--dim);background:var(--gw);}}.tab.on{{color:var(--ac);border-bottom-color:var(--ac);background:var(--gw);}}
+.tab-n{{font-family:'JetBrains Mono',monospace;font-size:8px;opacity:.35;margin-left:3px;}}
+
+/* SOURCE BAR */
+.src-bar{{
+  flex-shrink:0;background:var(--bg);
+  border-bottom:1px solid var(--bd);
+  padding:5px 18px;display:flex;align-items:center;
+  gap:5px;overflow-x:auto;white-space:nowrap;
+}}
+.src-bar::-webkit-scrollbar{{height:2px;}}.src-bar::-webkit-scrollbar-thumb{{background:var(--bdh);}}
+.src-lbl{{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--fnt);letter-spacing:1.5px;text-transform:uppercase;flex-shrink:0;}}
+.pill{{font-family:'Inter',sans-serif;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--bd);color:var(--dim);cursor:pointer;transition:all .18s;flex-shrink:0;}}
+.pill:hover{{border-color:var(--bdh);color:var(--tx);}}.pill.on{{border-color:var(--bdh);background:var(--gw);color:var(--ac);}}
+
+/* MAIN */
+.main{{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 18px 20px;}}
+.main::-webkit-scrollbar{{width:4px;}}.main::-webkit-scrollbar-thumb{{background:var(--bdh);border-radius:2px;}}
+.feed-hdr{{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;}}
+.feed-lbl{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--fnt);text-transform:uppercase;letter-spacing:2px;display:flex;align-items:center;gap:10px;}}
+.feed-lbl::after{{content:'';flex:1;height:1px;background:var(--bd);min-width:20px;}}
+
+/* PAGINATION */
+.pag{{display:flex;align-items:center;gap:4px;flex-shrink:0;}}
+.pg-b{{
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;
+  width:26px;height:26px;border-radius:6px;
+  border:1px solid var(--bd);background:var(--sf);
+  color:var(--dim);cursor:pointer;transition:all .18s;
+  display:flex;align-items:center;justify-content:center;
+}}
+.pg-b:hover:not([disabled]){{border-color:var(--bdh);color:var(--ac);background:var(--gw);}}
+.pg-b.on{{border-color:var(--bdh);background:var(--gw);color:var(--ac);}}
+.pg-b[disabled]{{opacity:.2;cursor:default;}}
+.pg-i{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--fnt);padding:0 2px;}}
+
+/* GRID */
+.grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}}
+@media(max-width:1100px){{.grid{{grid-template-columns:repeat(2,1fr);}}}}
+@media(max-width:680px){{.grid{{grid-template-columns:1fr;}}}}
+
+/* CARD */
+.card{{
+  background:var(--sf);border:1px solid var(--bd);
+  border-left:3px solid var(--cc,var(--ac));
+  border-radius:9px;padding:14px 15px 13px;
+  transition:transform .2s,border-color .2s,box-shadow .2s;
+}}
+.card:hover{{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.45);border-color:var(--bdh);}}
+.c-top{{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}}
+.badge{{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid;white-space:nowrap;flex-shrink:0;}}
+.c-ago{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--fnt);white-space:nowrap;padding-top:2px;}}
+.c-title{{
+  font-family:'Inter',sans-serif;font-size:13px;font-weight:600;
+  color:var(--tx);line-height:1.5;margin-bottom:7px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}}
+.new-b{{
+  display:inline-block;font-family:'JetBrains Mono',monospace;font-size:7px;
+  font-weight:700;letter-spacing:1px;color:#fff;background:#FF3C50;
+  padding:2px 5px;border-radius:3px;margin-left:5px;vertical-align:middle;
+  animation:nb 1.6s ease-in-out infinite;
+}}
 @keyframes nb{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
+.c-sum{{
+  font-family:'Inter',sans-serif;font-size:11px;color:var(--dim);
+  line-height:1.6;margin-bottom:11px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}}
+.c-foot{{display:flex;justify-content:space-between;align-items:center;gap:6px;}}
+.cat-p{{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;padding:2px 7px;border-radius:4px;}}
+.open-btn{{
+  font-family:'Inter',sans-serif;font-size:10px;font-weight:500;
+  color:var(--ac);text-decoration:none;padding:4px 11px;
+  border:1px solid var(--bdh);border-radius:5px;background:var(--gw);
+  transition:all .15s;
+}}
+.open-btn:hover{{background:var(--ac);color:var(--bg);}}
+
+/* ERROR PANEL */
+.err-panel{{background:rgba(255,75,110,.05);border:1px solid rgba(255,75,110,.18);border-radius:7px;overflow:hidden;margin-bottom:10px;}}
+.err-hdr{{font-family:'JetBrains Mono',monospace;font-size:10px;color:#FF4B6E;padding:7px 11px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;}}
+.err-body{{padding:0 11px 7px;display:none;}}.err-body.open{{display:block;}}
+.err-line{{font-family:'JetBrains Mono',monospace;font-size:9px;color:#FF4B6E;opacity:.7;padding:2px 0;}}
+
+.empty{{grid-column:1/-1;text-align:center;padding:60px 20px;font-family:'JetBrains Mono',monospace;color:var(--fnt);font-size:11px;}}
+
+::-webkit-scrollbar{{width:4px;height:4px;}}
+::-webkit-scrollbar-track{{background:transparent;}}
+::-webkit-scrollbar-thumb{{background:var(--bdh);border-radius:2px;}}
 </style>
-""", unsafe_allow_html=True)
+</head>
+<body>
 
-# ── HELPERS ───────────────────────────────────────────────────────────────────
-def esc(s): return str(s).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-now_str = datetime.now().strftime("%d %b %Y %H:%M")
+<!-- NAVBAR -->
+<nav class="nav">
+  <div class="logo"><div class="dot"></div>CYBERFEED</div>
+  <div class="stats" id="stats"></div>
+  <div class="nav-time" id="navTime">{now_str}</div>
+</nav>
 
-# ── NAVBAR ────────────────────────────────────────────────────────────────────
-cc = {}
-for a in articles: cc[a["cat"]] = cc.get(a["cat"],0)+1
-fresh_n = sum(1 for a in articles if a["fresh"])
-active  = len(FEEDS) - len(errors)
-
-def stat(n, label, color=None):
-    c = color or t['ac']
-    return f'<div style="display:flex;align-items:baseline;gap:4px;padding:0 11px;border-right:1px solid {t["bd"]};flex-shrink:0;"><span style="font-family:JetBrains Mono,monospace;font-size:13px;font-weight:700;color:{c};">{n}</span><span style="font-family:Inter,sans-serif;font-size:9px;color:{t["fnt"]};text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">{label}</span></div>'
-
-stats_html = (
-    stat(len(articles), "Articles") +
-    stat(f"{active}/{len(FEEDS)}", "Feeds", "#00D68F") +
-    stat(fresh_n, "New 4h", "#FF4B6E") +
-    stat(cc.get('Threats',0), "Threats", "#FF4B6E") +
-    stat(cc.get('Vulnerabilities',0), "Vulns") +
-    stat(cc.get('CVE',0), "CVE", "#E74C3C") +
-    stat(cc.get('Breaches',0), "Breaches", "#FF8C00") +
-    stat(cc.get('Analysis',0), "Analysis", "#A78BFA")
-)
-
-st.markdown(f"""
-<div style="background:{t['sf']};border-bottom:1px solid {t['bd']};height:46px;
-    display:flex;align-items:center;padding:0 18px;
-    box-shadow:0 1px 20px {t['nav_shadow']};
-    position:sticky;top:0;z-index:200;">
-  <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;
-      letter-spacing:2px;color:{t['ac']};display:flex;align-items:center;gap:8px;flex-shrink:0;">
-    <div style="width:7px;height:7px;border-radius:50%;background:{t['ac']};
-        box-shadow:0 0 8px {t['ac']};animation:blink 2s ease-in-out infinite;"></div>
-    CYBERFEED
-  </div>
-  <div style="display:flex;align-items:center;margin-left:18px;flex:1;overflow:hidden;">
-    {stats_html}
-  </div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:{t['fnt']};flex-shrink:0;">{now_str}</div>
+<!-- TICKER -->
+<div class="ticker">
+  <div class="t-lbl">LIVE</div>
+  <div class="t-track"><div class="t-inner" id="tInner"></div></div>
 </div>
-""", unsafe_allow_html=True)
 
-# ── TICKER ────────────────────────────────────────────────────────────────────
-cat_icons = {"Threats":"🔴","CVE":"🟠","Breaches":"🟡","Vulnerabilities":"🔵","Analysis":"🟣"}
-ticker_content = "".join(
-    f'<span style="font-family:Inter,sans-serif;font-size:11px;color:{t["dim"]};margin-right:28px;">'
-    f'{cat_icons.get(a["cat"],"⚪")} {esc(a["title"][:65])}{"…" if len(a["title"])>65 else ""}</span>'
-    f'<span style="color:{t["ac"]};opacity:.2;margin-right:28px;">·</span>'
-    for a in articles[:22]
-)
-st.markdown(f"""
-<div style="background:{t['sf3']};border-bottom:1px solid {t['bd']};height:26px;
-    display:flex;align-items:center;overflow:hidden;">
-  <div style="font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;
-      color:{t['ac']};letter-spacing:2px;padding:0 11px;flex-shrink:0;
-      border-right:1px solid {t['bd']};white-space:nowrap;">LIVE</div>
-  <div style="flex:1;overflow:hidden;">
-    <div style="display:inline-block;white-space:nowrap;animation:ticker 100s linear infinite;">
-      {ticker_content}{ticker_content}
-    </div>
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="sw">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input id="si" type="text" placeholder="Search headlines, CVEs, threat actors, APTs…" autocomplete="off">
   </div>
+  <select id="cs">
+    <option value="All">All Categories</option>
+    <option value="Threats">Threats</option>
+    <option value="Vulnerabilities">Vulnerabilities</option>
+    <option value="Breaches">Breaches</option>
+    <option value="CVE">CVE</option>
+    <option value="Analysis">Analysis</option>
+  </select>
+  <select id="th">
+    <option value="">⬤ Midnight</option>
+    <option value="obsidian">⬤ Obsidian</option>
+    <option value="terminal">⬤ Terminal</option>
+    <option value="crimson">⬤ Crimson</option>
+    <option value="arctic">⬤ Arctic</option>
+  </select>
+  <button class="btn" onclick="location.reload()">↻ REFRESH</button>
 </div>
-""", unsafe_allow_html=True)
 
-# ── TOOLBAR ───────────────────────────────────────────────────────────────────
-st.markdown(f'<div style="background:{t["sf2"]};border-bottom:1px solid {t["bd"]};padding:7px 18px;">', unsafe_allow_html=True)
-tc1, tc2, tc3, tc4, tc5 = st.columns([4, 1.4, 1.5, 1.4, 0.9])
-with tc1:
-    search = st.text_input("s","",placeholder="🔍  Search headlines, CVEs, threat actors…",label_visibility="collapsed",key="search_q")
-with tc2:
-    new_cat = st.selectbox("c",CATEGORIES,index=CATEGORIES.index(st.session_state.cat),label_visibility="collapsed",key="cat_q")
-    if new_cat != st.session_state.cat:
-        st.session_state.cat=new_cat; st.session_state.page=0; st.rerun()
-with tc3:
-    all_src = sorted(set(a["src"] for a in articles))
-    new_srcs = st.multiselect("s2",all_src,default=st.session_state.src_filter,placeholder="All sources",label_visibility="collapsed",key="src_q")
-    if new_srcs != st.session_state.src_filter:
-        st.session_state.src_filter=new_srcs; st.session_state.page=0; st.rerun()
-with tc4:
-    th_list = list(T.keys())
-    new_th = st.selectbox("th",th_list,index=th_list.index(st.session_state.theme),label_visibility="collapsed",key="theme_q")
-    if new_th != st.session_state.theme:
-        st.session_state.theme=new_th; st.rerun()
-with tc5:
-    st.markdown(f'<div data-btn="accent">', unsafe_allow_html=True)
-    if st.button("↻ Refresh",key="refresh_q"):
-        st.cache_data.clear(); st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+<!-- TABS -->
+<div class="tabs" id="tabs"></div>
 
-# ── CAT TABS ──────────────────────────────────────────────────────────────────
-tabs_html = f'<div style="background:{t["sf"]};border-bottom:1px solid {t["bd"]};padding:0 18px;display:flex;overflow-x:auto;">'
-for c in CATEGORIES:
-    n  = len(articles) if c=="All" else cc.get(c,0)
-    on = c == st.session_state.cat
-    col= t['ac'] if on else t['fnt']
-    bdb= f"2px solid {t['ac']}" if on else "2px solid transparent"
-    bg = t['gw'] if on else "transparent"
-    tabs_html += f'<div style="font-family:Inter,sans-serif;font-size:11px;font-weight:500;padding:9px 14px 7px;color:{col};border-bottom:{bdb};white-space:nowrap;background:{bg};">{c}<span style="font-family:JetBrains Mono,monospace;font-size:8px;opacity:.35;margin-left:3px;">({n})</span></div>'
-tabs_html += "</div>"
-st.markdown(tabs_html, unsafe_allow_html=True)
+<!-- SOURCE BAR -->
+<div class="src-bar" id="srcBar"><span class="src-lbl">Sources</span></div>
 
-# ── SOURCE PILLS ──────────────────────────────────────────────────────────────
-pills = f'<div style="background:{t["bg"]};border-bottom:1px solid {t["bd"]};padding:5px 18px;display:flex;align-items:center;gap:5px;overflow-x:auto;flex-wrap:wrap;">'
-pills += f'<span style="font-family:JetBrains Mono,monospace;font-size:8px;color:{t["fnt"]};letter-spacing:1.5px;text-transform:uppercase;flex-shrink:0;">Sources</span>'
-for s in all_src:
-    on = s in st.session_state.src_filter
-    pills += f'<span style="font-family:Inter,sans-serif;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid {"" if not on else ""}{t["bdh"] if on else t["bd"]};color:{"" if not on else ""}{t["ac"] if on else t["dim"]};background:{t["gw"] if on else "transparent"};flex-shrink:0;">{esc(s)}</span>'
-pills += "</div>"
-st.markdown(pills, unsafe_allow_html=True)
+<!-- MAIN -->
+<div class="main" id="mainArea">
+  <div id="errPanel"></div>
+  <div class="feed-hdr">
+    <div class="feed-lbl" id="feedLbl">Loading…</div>
+    <div class="pag" id="pag"></div>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
 
-# ── READER ────────────────────────────────────────────────────────────────────
-if st.session_state.reader_url:
-    color = st.session_state.reader_color
-    url_s = st.session_state.reader_url.replace('"','%22')
-    title_s = esc(st.session_state.reader_title)
+<script>
+const ALL   = {articles_json};
+const ERRS  = {errors_json};
+const FCNT  = {feed_count};
+const PER   = 15;
 
-    st.markdown(f"""
-    <div style="background:{t['sf']};border:1px solid {color}33;border-radius:12px;
-        overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);margin:10px 18px 0;">
-        <div style="background:linear-gradient(135deg,{color}18,{color}05);
-            border-bottom:1px solid {color}22;padding:18px 24px 16px;
-            display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
-            <div style="flex:1;">
-                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
-                    font-weight:700;letter-spacing:2px;color:{color};
-                    text-transform:uppercase;margin-bottom:8px;">{esc(st.session_state.reader_src)}</div>
-                <div style="font-size:19px;font-weight:800;color:{t['tx']};
-                    line-height:1.4;font-family:'Inter',sans-serif;">{title_s}</div>
-            </div>
-            <a href="{url_s}" target="_blank" style="flex-shrink:0;margin-top:2px;
-                font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
-                color:{color};text-decoration:none;padding:7px 14px;
-                border:1px solid {color}44;border-radius:7px;background:{color}12;
-                white-space:nowrap;">↗ Original</a>
-        </div>
-    """, unsafe_allow_html=True)
+const CAT_COLORS={{Threats:'#FF4B6E',Vulnerabilities:'#00C2FF',Breaches:'#FF8C00',CVE:'#E74C3C',Analysis:'#A78BFA'}};
+const CAT_ICO={{Threats:'🔴',CVE:'🟠',Breaches:'🟡',Vulnerabilities:'🔵',Analysis:'🟣'}};
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-    col_back, _ = st.columns([1,8])
-    with col_back:
-        if st.button("← Back", key="back_btn"):
-            st.session_state.reader_url = None
-            st.rerun()
+const S={{search:'',cat:'All',srcs:new Set(),page:0}};
 
-    with st.spinner("Extracting article…"):
-        content = fetch_article(st.session_state.reader_url)
+function filtered(){{
+  let a=ALL;
+  if(S.cat!=='All')a=a.filter(x=>x.cat===S.cat);
+  if(S.srcs.size)a=a.filter(x=>S.srcs.has(x.src));
+  if(S.search.length>=2){{
+    const q=S.search.toLowerCase();
+    a=a.filter(x=>x.title.toLowerCase().includes(q)||x.summary.toLowerCase().includes(q));
+  }}
+  return a;
+}}
 
-    if content["ok"]:
-        wc = content["word_count"]
-        st.markdown(f'<div style="padding:14px 24px 4px;font-family:JetBrains Mono,monospace;font-size:9px;color:{t["fnt"]};letter-spacing:.8px;margin-bottom:4px;">{wc:,} words · ~{max(1,round(wc/200))} min read</div>', unsafe_allow_html=True)
-        for p in content["paragraphs"]:
-            p_e = esc(p)
-            is_h = len(p)<100 and not p.endswith(('.', ',', ':')) and len(p)>8 and not p[0].islower()
-            if is_h:
-                st.markdown(f'<div style="font-family:Inter,sans-serif;font-size:16px;font-weight:700;color:{t["tx"]};margin:20px 24px 8px;line-height:1.4;">{p_e}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<p style="font-family:Inter,sans-serif;font-size:14px;color:{t["dim"]};line-height:1.9;margin:0 24px 12px;">{p_e}</p>', unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div style="text-align:center;padding:48px 24px;">
-            <div style="font-size:36px;opacity:.2;margin-bottom:12px;">📄</div>
-            <div style="font-family:JetBrains Mono,monospace;font-size:11px;color:{t['fnt']};margin-bottom:8px;">Could not extract content</div>
-            <div style="font-family:Inter,sans-serif;font-size:11px;color:{t['fnt']};opacity:.7;max-width:460px;margin:0 auto 18px;line-height:1.6;">{esc(content['error'])}</div>
-            <a href="{url_s}" target="_blank" style="font-family:Inter,sans-serif;font-size:12px;color:{color};text-decoration:none;padding:9px 22px;border:1px solid {color}44;border-radius:8px;background:{color}12;">Open original in browser →</a>
-        </div>""", unsafe_allow_html=True)
+function renderStats(){{
+  const cc={{}};ALL.forEach(a=>cc[a.cat]=(cc[a.cat]||0)+1);
+  const fn=ALL.filter(a=>a.fresh).length;
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><span class="sn">${{ALL.length}}</span><span class="sl">Articles</span></div>
+    <div class="stat"><span class="sn c-g">${{FCNT-ERRS.length}}/${{FCNT}}</span><span class="sl">Feeds</span></div>
+    <div class="stat"><span class="sn c-r">${{fn}}</span><span class="sl">New 4h</span></div>
+    <div class="stat"><span class="sn c-r">${{cc.Threats||0}}</span><span class="sl">Threats</span></div>
+    <div class="stat"><span class="sn">${{cc.Vulnerabilities||0}}</span><span class="sl">Vulns</span></div>
+    <div class="stat"><span class="sn c-r">${{cc.CVE||0}}</span><span class="sl">CVE</span></div>
+    <div class="stat"><span class="sn c-a">${{cc.Breaches||0}}</span><span class="sl">Breaches</span></div>
+    <div class="stat"><span class="sn c-p">${{cc.Analysis||0}}</span><span class="sl">Analysis</span></div>`;
+}}
 
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown(f'<div style="margin:0 18px;border-bottom:1px solid {t["bd"]};margin-top:10px;margin-bottom:2px;"></div>', unsafe_allow_html=True)
+function renderTicker(){{
+  const items=ALL.slice(0,24).map(a=>{{
+    const t=a.title.length>70?a.title.slice(0,70)+'…':a.title;
+    return `<span class="t-item">${{CAT_ICO[a.cat]||'⚪'}} ${{esc(t)}}</span><span class="t-sep">·</span>`;
+  }}).join('');
+  document.getElementById('tInner').innerHTML=items+items;
+}}
 
-# ── FILTER ────────────────────────────────────────────────────────────────────
-filtered = articles
-if st.session_state.cat != "All":
-    filtered = [a for a in filtered if a["cat"] == st.session_state.cat]
-if st.session_state.src_filter:
-    filtered = [a for a in filtered if a["src"] in st.session_state.src_filter]
-if search and len(search) >= 2:
-    q = search.lower()
-    filtered = [a for a in filtered if q in a["title"].lower() or q in a["summary"].lower()]
-
-total = len(filtered)
-max_page = max(0, (total-1)//PER_PAGE) if total else 0
-if st.session_state.page > max_page:
-    st.session_state.page = 0
-page_arts = filtered[st.session_state.page*PER_PAGE:(st.session_state.page+1)*PER_PAGE]
-
-# ── FEED HEADER + PAGINATION ──────────────────────────────────────────────────
-lbl = f"{total} articles"
-if search:                         lbl += f' · "{search}"'
-if st.session_state.cat != "All": lbl += f" · {st.session_state.cat}"
-if st.session_state.src_filter:   lbl += f" · {len(st.session_state.src_filter)} source(s)"
-
-total_pages = max(1, -(-total//PER_PAGE))
-cur = st.session_state.page
-
-st.markdown(f'<div style="padding:10px 18px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px;">', unsafe_allow_html=True)
-hc1, hc2 = st.columns([3,2])
-with hc1:
-    st.markdown(f'<div style="font-family:JetBrains Mono,monospace;font-size:9px;color:{t["fnt"]};text-transform:uppercase;letter-spacing:2px;padding:4px 0;">{lbl}</div>', unsafe_allow_html=True)
-with hc2:
-    if total_pages > 1:
-        # Build visible pages list
-        visible = sorted(set([0, total_pages-1] + list(range(max(0,cur-1), min(total_pages,cur+2)))))
-        pg_cols = st.columns(len(visible)+3)
-        with pg_cols[0]:
-            st.markdown(f'<div data-btn="accent">', unsafe_allow_html=True)
-            if st.button("‹", key="pg_prev", disabled=(cur==0)):
-                st.session_state.page=cur-1; st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-        prev_p=-1
-        for ci, p in enumerate(visible):
-            if prev_p>=0 and p-prev_p>1 and ci+1<len(pg_cols)-1:
-                with pg_cols[ci+1]: st.markdown(f'<div style="text-align:center;font-family:JetBrains Mono,monospace;font-size:10px;color:{t["fnt"]};padding:6px 2px;">…</div>', unsafe_allow_html=True)
-            with pg_cols[ci+1]:
-                st.markdown(f'<div data-btn="accent">', unsafe_allow_html=True)
-                if st.button(f"**{p+1}**" if p==cur else str(p+1), key=f"pg_{p}"):
-                    st.session_state.page=p; st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-            prev_p=p
-        with pg_cols[-1]:
-            st.markdown(f'<div data-btn="accent">', unsafe_allow_html=True)
-            if st.button("›", key="pg_next", disabled=(cur>=total_pages-1)):
-                st.session_state.page=cur+1; st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ── ERRORS ────────────────────────────────────────────────────────────────────
-if errors:
-    with st.expander(f"⚠ {len(errors)} feed(s) unreachable", expanded=False):
-        for e in errors:
-            st.markdown(f'<span style="font-family:JetBrains Mono,monospace;font-size:10px;color:#FF4B6E;">✗ {esc(e)}</span>', unsafe_allow_html=True)
-
-# ── CARDS GRID ────────────────────────────────────────────────────────────────
-if not page_arts:
-    st.markdown(f'<div style="text-align:center;padding:60px;font-family:JetBrains Mono,monospace;font-size:11px;color:{t["fnt"]};">📡<br><br>No articles match your filters.</div>', unsafe_allow_html=True)
-else:
-    cols = st.columns(3, gap="small")
-    for i, a in enumerate(page_arts):
-        with cols[i % 3]:
-            c    = a["color"]
-            cc2  = CAT_COLORS.get(a["cat"],"#888")
-            nb   = f'<span style="display:inline-block;font-family:JetBrains Mono,monospace;font-size:7px;font-weight:700;letter-spacing:1px;color:#fff;background:#FF3C50;padding:2px 4px;border-radius:3px;margin-left:5px;vertical-align:middle;animation:nb 1.6s ease-in-out infinite;">NEW</span>' if a["fresh"] else ""
-
-            # Card HTML (no button inside — button below)
-            st.markdown(f"""
-<div style="background:{t['sf']};border:1px solid {t['bd']};border-left:3px solid {c};
-    border-radius:9px;padding:14px 14px 10px;margin-bottom:0;">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
-    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;
-        padding:2px 8px;border-radius:20px;border:1px solid {c}44;
-        color:{c};background:{c}14;white-space:nowrap;flex-shrink:0;">
-        {a['icon']} {esc(a['src'])}
+function renderErrors(){{
+  const el=document.getElementById('errPanel');
+  if(!ERRS.length){{el.innerHTML='';return;}}
+  el.innerHTML=`<div class="err-panel">
+    <div class="err-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
+      ⚠ ${{ERRS.length}} feed(s) had errors
+      <span style="margin-left:auto;opacity:.5">▾</span>
     </div>
-    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:{t['fnt']};
-        white-space:nowrap;padding-top:2px;">{a['ago']}</div>
-  </div>
-  <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:{t['tx']};
-      line-height:1.5;margin-bottom:7px;display:-webkit-box;
-      -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
-    {esc(a['title'])}{nb}
-  </div>
-  <div style="font-family:'Inter',sans-serif;font-size:11px;color:{t['dim']};
-      line-height:1.6;margin-bottom:10px;display:-webkit-box;
-      -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
-    {esc(a['summary']) or 'No summary.'}
-  </div>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
-    <span style="font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;
-        text-transform:uppercase;letter-spacing:1.5px;padding:2px 7px;
-        border-radius:4px;color:{cc2};background:{cc2}18;">{a['cat']}</span>
-    <a href="{esc(a['url'])}" target="_blank" style="font-family:'Inter',sans-serif;
-        font-size:10px;font-weight:500;color:{t['ac']};text-decoration:none;
-        padding:3px 9px;border:1px solid {t['bdh']};border-radius:5px;
-        background:{t['gw']};">↗ Open</a>
-  </div>
-</div>""", unsafe_allow_html=True)
+    <div class="err-body">
+      ${{ERRS.map(e=>`<div class="err-line">✗ ${{esc(e)}}</div>`).join('')}}
+    </div>
+  </div>`;
+}}
 
-            # Read here — native Streamlit button, ALWAYS works
-            if st.button("📖  Read here", key=f"r_{i}_{cur}_{st.session_state.cat}_{st.session_state.theme}"):
-                st.session_state.reader_url   = a["url"]
-                st.session_state.reader_title = a["title"]
-                st.session_state.reader_src   = a["src"]
-                st.session_state.reader_color = a["color"]
-                st.rerun()
+function renderTabs(){{
+  const CATS=['All','Threats','Vulnerabilities','Breaches','CVE','Analysis'];
+  const cc={{}};ALL.forEach(a=>cc[a.cat]=(cc[a.cat]||0)+1);
+  document.getElementById('tabs').innerHTML=CATS.map(c=>
+    `<div class="tab ${{S.cat===c?'on':''}}" onclick="setCat('${{c}}')">
+      ${{c}}<span class="tab-n">(${{c==='All'?ALL.length:cc[c]||0}})</span>
+    </div>`).join('');
+}}
 
-            st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+function renderSrcBar(){{
+  const srcs=[...new Set(ALL.map(a=>a.src))].sort();
+  document.getElementById('srcBar').innerHTML='<span class="src-lbl">Sources</span>'+
+    srcs.map(s=>`<span class="pill ${{S.srcs.has(s)?'on':''}}" onclick="toggleSrc('${{esc(s)}}')">${{esc(s)}}</span>`).join('');
+}}
+
+function cardHTML(a){{
+  const c=a.color,cc=CAT_COLORS[a.cat]||'#888';
+  const nb=a.fresh?'<span class="new-b">NEW</span>':'';
+  return `<div class="card" style="--cc:${{c}}">
+  <div class="c-top">
+    <div class="badge" style="color:${{c}};border-color:${{c}}44;background:${{c}}14">
+      ${{a.icon}} ${{esc(a.src)}}
+    </div>
+    <div class="c-ago">${{esc(a.ago)}}</div>
+  </div>
+  <div class="c-title">${{esc(a.title)}}${{nb}}</div>
+  <div class="c-sum">${{esc(a.summary)||'No summary.'}}</div>
+  <div class="c-foot">
+    <span class="cat-p" style="color:${{cc}};background:${{cc}}18">${{a.cat}}</span>
+    <a class="open-btn" href="${{esc(a.url)}}" target="_blank" rel="noopener">↗ Open</a>
+  </div>
+</div>`;
+}}
+
+function renderPag(total){{
+  const pages=Math.ceil(total/PER);
+  const el=document.getElementById('pag');
+  if(pages<=1){{el.innerHTML='';return;}}
+  let h=`<button class="pg-b" onclick="goPage(${{S.page-1}})" ${{S.page===0?'disabled':''}}>‹</button>`;
+  const range=[];
+  for(let i=0;i<pages;i++){{
+    if(i===0||i===pages-1||Math.abs(i-S.page)<=1)range.push(i);
+    else if(range[range.length-1]!=='…')range.push('…');
+  }}
+  range.forEach(i=>{{
+    if(i==='…')h+=`<span class="pg-i">…</span>`;
+    else h+=`<button class="pg-b ${{i===S.page?'on':''}}" onclick="goPage(${{i}})">${{i+1}}</button>`;
+  }});
+  h+=`<button class="pg-b" onclick="goPage(${{S.page+1}})" ${{S.page===pages-1?'disabled':''}}>›</button>`;
+  h+=`<span class="pg-i">${{S.page+1}}/${{pages}}</span>`;
+  el.innerHTML=h;
+}}
+
+function renderGrid(){{
+  const arts=filtered();
+  let lbl=`${{arts.length}} articles`;
+  if(S.search)lbl+=` · "${{esc(S.search)}}"`;
+  if(S.cat!=='All')lbl+=` · ${{S.cat}}`;
+  if(S.srcs.size)lbl+=` · ${{S.srcs.size}} source(s)`;
+  document.getElementById('feedLbl').textContent=lbl;
+  renderPag(arts.length);
+  const page=arts.slice(S.page*PER,(S.page+1)*PER);
+  if(!page.length){{
+    document.getElementById('grid').innerHTML='<div class="empty">📡<br><br>No articles match your filters.</div>';
+    return;
+  }}
+  document.getElementById('grid').innerHTML=page.map(cardHTML).join('');
+}}
+
+function setCat(c){{S.cat=c;S.page=0;renderTabs();renderGrid();}}
+function goPage(p){{
+  const arts=filtered();
+  S.page=Math.max(0,Math.min(p,Math.ceil(arts.length/PER)-1));
+  renderGrid();
+  document.getElementById('mainArea').scrollTop=0;
+}}
+function toggleSrc(s){{
+  S.srcs.has(s)?S.srcs.delete(s):S.srcs.add(s);
+  S.page=0;renderSrcBar();renderGrid();
+}}
+
+document.getElementById('th').addEventListener('change',function(){{
+  document.body.className=this.value;
+}});
+let q_t;
+document.getElementById('si').addEventListener('input',function(){{
+  clearTimeout(q_t);
+  q_t=setTimeout(()=>{{S.search=this.value;S.page=0;renderGrid();}},200);
+}});
+document.getElementById('cs').addEventListener('change',function(){{
+  S.cat=this.value;S.page=0;renderTabs();renderGrid();
+}});
+setInterval(()=>{{
+  const n=new Date();
+  document.getElementById('navTime').textContent=
+    n.toLocaleDateString('en-GB',{{day:'2-digit',month:'short',year:'numeric'}})+' '+
+    n.toLocaleTimeString('en-GB',{{hour:'2-digit',minute:'2-digit'}});
+}},15000);
+
+renderStats();renderTicker();renderErrors();renderTabs();renderSrcBar();renderGrid();
+</script>
+</body>
+</html>"""
+
+components.html(HTML, height=900, scrolling=False)
