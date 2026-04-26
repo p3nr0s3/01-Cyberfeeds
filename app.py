@@ -133,224 +133,269 @@ HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0;}}
-
 :root{{
-  --bg:#070A12;--sf:#0D1220;--sf2:#111827;--sf3:#0A0F1E;
-  --bd:rgba(255,255,255,0.07);--bdh:rgba(0,194,255,0.4);
-  --tx:#D0DCF0;--dim:rgba(208,220,240,0.5);--fnt:rgba(208,220,240,0.28);
-  --ac:#00C2FF;--gw:rgba(0,194,255,0.13);
+  --bg:#F7F5F0;--sf:#FFFFFF;--sf2:#EFEDE8;--sf3:#E8E5DE;
+  --bd:rgba(0,0,0,0.1);--bds:rgba(0,0,0,0.06);
+  --tx:#111111;--dim:#444444;--muted:#888888;
+  --ac:#C41230;--ac2:#8B0D1F;
+  --serif:'Playfair Display',Georgia,serif;
+  --sans:'Inter',sans-serif;
+  --mono:'JetBrains Mono',monospace;
 }}
-body.obsidian{{--bg:#0A0A0A;--sf:#141414;--sf2:#1C1C1C;--sf3:#111;--bdh:rgba(160,120,255,.4);--tx:#E0D8FF;--dim:rgba(224,216,255,.5);--fnt:rgba(224,216,255,.25);--ac:#A078FF;--gw:rgba(160,120,255,.13);}}
-body.terminal{{--bg:#010B01;--sf:#051505;--sf2:#081A08;--sf3:#030D03;--bd:rgba(0,255,65,.1);--bdh:rgba(0,255,65,.4);--tx:#B0FFB8;--dim:rgba(176,255,184,.5);--fnt:rgba(176,255,184,.25);--ac:#00FF41;--gw:rgba(0,255,65,.1);}}
-body.crimson{{--bg:#0C0608;--sf:#180B0E;--sf2:#200E12;--sf3:#0E0709;--bdh:rgba(255,60,80,.4);--tx:#FFD0D8;--dim:rgba(255,208,216,.5);--fnt:rgba(255,208,216,.25);--ac:#FF3C50;--gw:rgba(255,60,80,.13);}}
-body.arctic{{--bg:#EEF2FA;--sf:#FFF;--sf2:#F5F8FF;--sf3:#E8EEF8;--bd:rgba(0,0,0,.08);--bdh:rgba(0,100,255,.4);--tx:#1A2540;--dim:rgba(26,37,64,.55);--fnt:rgba(26,37,64,.32);--ac:#0064FF;--gw:rgba(0,100,255,.1);}}
-
-body{{
-  font-family:'Inter',sans-serif;
-  background:var(--bg);color:var(--tx);
-  width:100vw;height:100vh;
-  display:flex;flex-direction:column;
-  overflow:hidden;
+body.night{{
+  --bg:#0E0E0E;--sf:#181818;--sf2:#1F1F1F;--sf3:#151515;
+  --bd:rgba(255,255,255,0.08);--bds:rgba(255,255,255,0.04);
+  --tx:#F0EEE8;--dim:#AAAAAA;--muted:#666666;
+  --ac:#E8294A;--ac2:#FF4D6A;
 }}
+body.slate{{
+  --bg:#1A1F2E;--sf:#232B3E;--sf2:#1E2538;--sf3:#161B29;
+  --bd:rgba(255,255,255,0.08);--bds:rgba(255,255,255,0.04);
+  --tx:#D8E0F0;--dim:#8896B8;--muted:#4A5580;
+  --ac:#4F8EF7;--ac2:#7AAEFF;
+}}
+body.forest{{
+  --bg:#F2F5EE;--sf:#FFFFFF;--sf2:#E8EDE2;--sf3:#DDE4D5;
+  --bd:rgba(0,0,0,0.1);--bds:rgba(0,0,0,0.05);
+  --tx:#1C2B1A;--dim:#3D5C38;--muted:#7A9A72;
+  --ac:#2D6A2A;--ac2:#1F4D1D;
+}}
+body{{font-family:var(--sans);background:var(--bg);color:var(--tx);width:100vw;height:100vh;display:flex;flex-direction:column;overflow:hidden;}}
 
-/* NAVBAR */
-.nav{{
+/* ── MASTHEAD ── */
+.masthead{{
   flex-shrink:0;background:var(--sf);
-  border-bottom:1px solid var(--bd);
-  height:46px;display:flex;align-items:center;
-  padding:0 18px;box-shadow:0 1px 20px rgba(0,0,0,.4);
+  border-bottom:3px solid var(--tx);
+  padding:0 24px;
 }}
-.logo{{
-  font-family:'JetBrains Mono',monospace;font-size:13px;
-  font-weight:700;letter-spacing:2px;color:var(--ac);
-  display:flex;align-items:center;gap:8px;
-  user-select:none;flex-shrink:0;
+.mast-top{{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0 6px;border-bottom:1px solid var(--bd);
+  gap:12px;
 }}
-.dot{{
-  width:7px;height:7px;border-radius:50%;
-  background:var(--ac);box-shadow:0 0 8px var(--ac);
-  animation:blink 2s ease-in-out infinite;
+.mast-meta{{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.08em;}}
+.mast-cats{{display:flex;gap:2px;}}
+.mcat{{font-family:var(--sans);font-size:10px;font-weight:500;padding:3px 10px;border-radius:2px;cursor:pointer;color:var(--dim);transition:all .15s;border:none;background:none;}}
+.mcat:hover{{color:var(--tx);}}.mcat.on{{color:var(--sf);background:var(--tx);}}
+.mast-bottom{{
+  display:flex;align-items:center;justify-content:center;
+  padding:10px 0 8px;gap:16px;
 }}
-@keyframes blink{{0%,100%{{opacity:1;transform:scale(1)}}50%{{opacity:.2;transform:scale(.55)}}}}
-.stats{{display:flex;align-items:center;margin-left:18px;flex:1;overflow:hidden;}}
-.stat{{display:flex;align-items:baseline;gap:4px;padding:0 11px;border-right:1px solid var(--bd);flex-shrink:0;}}
-.sn{{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--ac);}}
-.sl{{font-family:'Inter',sans-serif;font-size:9px;font-weight:500;color:var(--fnt);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;}}
-.c-r{{color:#FF4B6E!important}}.c-a{{color:#FF8C00!important}}.c-g{{color:#00D68F!important}}.c-p{{color:#A78BFA!important}}
-.nav-time{{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--fnt);flex-shrink:0;}}
+.logo{{font-family:var(--serif);font-size:32px;font-weight:900;color:var(--tx);letter-spacing:-.5px;line-height:1;user-select:none;text-align:center;flex:1;}}
+.logo span{{color:var(--ac);}}
+.mast-side{{display:flex;align-items:center;gap:8px;width:220px;}}
+.mast-side-r{{justify-content:flex-end;}}
+.live-dot{{width:7px;height:7px;border-radius:50%;background:var(--ac);animation:blink 2s ease-in-out infinite;flex-shrink:0;}}
+@keyframes blink{{0%,100%{{opacity:1}}50%{{opacity:.2}}}}
+.live-txt{{font-family:var(--mono);font-size:9px;color:var(--ac);letter-spacing:.15em;}}
+.stat-pill{{font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;align-items:baseline;gap:3px;}}
+.stat-n{{font-size:11px;font-weight:500;color:var(--tx);}}
 
-/* TICKER */
+/* ── TICKER ── */
 .ticker{{
-  flex-shrink:0;background:var(--sf3);
-  border-bottom:1px solid var(--bd);
-  height:26px;display:flex;align-items:center;overflow:hidden;
+  flex-shrink:0;background:var(--tx);
+  height:24px;display:flex;align-items:center;overflow:hidden;
 }}
-.t-lbl{{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:var(--ac);letter-spacing:2px;padding:0 11px;flex-shrink:0;border-right:1px solid var(--bd);white-space:nowrap;}}
+.t-lbl{{font-family:var(--mono);font-size:8px;font-weight:500;color:var(--sf);letter-spacing:.2em;padding:0 12px;flex-shrink:0;border-right:1px solid rgba(255,255,255,0.2);white-space:nowrap;}}
 .t-track{{flex:1;overflow:hidden;}}
-.t-inner{{display:inline-block;white-space:nowrap;animation:ticker 100s linear infinite;}}
+.t-inner{{display:inline-block;white-space:nowrap;animation:ticker 120s linear infinite;}}
 .t-inner:hover{{animation-play-state:paused;}}
 @keyframes ticker{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
-.t-item{{font-family:'Inter',sans-serif;font-size:11px;color:var(--dim);margin-right:32px;display:inline;}}
-.t-sep{{color:var(--ac);opacity:.2;margin-right:32px;display:inline;}}
+.t-item{{font-family:var(--sans);font-size:10px;color:rgba(255,255,255,.75);margin-right:28px;display:inline;}}
+.t-sep{{color:var(--ac);margin-right:28px;display:inline;opacity:.6;}}
+.night .t-lbl{{color:var(--sf);}}.night .t-item{{color:rgba(240,238,232,.75);}}
 
-/* TOOLBAR */
+/* ── TOOLBAR ── */
 .toolbar{{
   flex-shrink:0;background:var(--sf2);
   border-bottom:1px solid var(--bd);
-  padding:7px 18px;display:flex;align-items:center;gap:8px;
+  padding:6px 24px;display:flex;align-items:center;gap:8px;
 }}
 .sw{{flex:1;min-width:0;position:relative;}}
-.sw svg{{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.3;pointer-events:none;}}
+.sw svg{{position:absolute;left:9px;top:50%;transform:translateY(-50%);opacity:.35;pointer-events:none;}}
 #si{{
-  width:100%;background:var(--sf);border:1px solid var(--bd);border-radius:7px;
-  color:var(--tx);font-family:'Inter',sans-serif;font-size:12px;
-  padding:7px 10px 7px 32px;height:34px;outline:none;
-  transition:border-color .18s,box-shadow .18s;
+  width:100%;background:var(--sf);border:1px solid var(--bd);border-radius:4px;
+  color:var(--tx);font-family:var(--sans);font-size:12px;
+  padding:6px 10px 6px 30px;height:32px;outline:none;
+  transition:border-color .15s;
 }}
-#si:focus{{border-color:var(--bdh);box-shadow:0 0 0 2px var(--gw);}}
-#si::placeholder{{color:var(--fnt);}}
+#si:focus{{border-color:var(--ac);}}
+#si::placeholder{{color:var(--muted);}}
 select{{
-  background:var(--sf);border:1px solid var(--bd);border-radius:7px;
-  color:var(--tx);font-family:'Inter',sans-serif;font-size:11px;
-  padding:0 26px 0 10px;height:34px;outline:none;cursor:pointer;
+  background:var(--sf);border:1px solid var(--bd);border-radius:4px;
+  color:var(--tx);font-family:var(--sans);font-size:11px;
+  padding:0 24px 0 9px;height:32px;outline:none;cursor:pointer;
   -webkit-appearance:none;appearance:none;flex-shrink:0;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23666'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 8px center;
-  transition:border-color .18s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23999'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;
+  transition:border-color .15s;
 }}
-select:focus{{border-color:var(--bdh);}}
-#cs{{width:130px;}}#th{{width:128px;}}
-.btn{{
-  background:var(--gw);border:1px solid var(--bdh);border-radius:7px;
-  color:var(--ac);font-family:'JetBrains Mono',monospace;
-  font-size:10px;font-weight:700;height:34px;padding:0 13px;
-  cursor:pointer;transition:all .18s;flex-shrink:0;white-space:nowrap;
+select:focus{{border-color:var(--ac);}}
+#cs{{width:130px;}}#th{{width:130px;}}
+.rbtn{{
+  background:var(--ac);border:none;border-radius:4px;
+  color:#fff;font-family:var(--mono);
+  font-size:10px;font-weight:500;height:32px;padding:0 12px;
+  cursor:pointer;transition:all .15s;flex-shrink:0;
 }}
-.btn:hover{{background:var(--ac);color:var(--bg);box-shadow:0 0 14px var(--gw);}}
+.rbtn:hover{{background:var(--ac2);}}
 
-/* TABS */
-.tabs{{
-  flex-shrink:0;background:var(--sf);
-  border-bottom:1px solid var(--bd);
-  padding:0 18px;display:flex;overflow-x:auto;
-}}
-.tabs::-webkit-scrollbar{{height:2px;}}
-.tab{{
-  font-family:'Inter',sans-serif;font-size:11px;font-weight:500;
-  padding:9px 14px 7px;color:var(--fnt);
-  border-bottom:2px solid transparent;cursor:pointer;
-  white-space:nowrap;transition:all .18s;
-}}
-.tab:hover{{color:var(--dim);background:var(--gw);}}.tab.on{{color:var(--ac);border-bottom-color:var(--ac);background:var(--gw);}}
-.tab-n{{font-family:'JetBrains Mono',monospace;font-size:8px;opacity:.35;margin-left:3px;}}
-
-/* SOURCE BAR */
+/* ── SRC BAR ── */
 .src-bar{{
-  flex-shrink:0;background:var(--bg);
-  border-bottom:1px solid var(--bd);
-  padding:5px 18px;display:flex;align-items:center;
-  gap:5px;overflow-x:auto;white-space:nowrap;
+  flex-shrink:0;background:var(--sf);border-bottom:1px solid var(--bd);
+  padding:5px 24px;display:flex;align-items:center;gap:5px;overflow-x:auto;white-space:nowrap;
 }}
-.src-bar::-webkit-scrollbar{{height:2px;}}.src-bar::-webkit-scrollbar-thumb{{background:var(--bdh);}}
-.src-lbl{{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--fnt);letter-spacing:1.5px;text-transform:uppercase;flex-shrink:0;}}
-.pill{{font-family:'Inter',sans-serif;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--bd);color:var(--dim);cursor:pointer;transition:all .18s;flex-shrink:0;}}
-.pill:hover{{border-color:var(--bdh);color:var(--tx);}}.pill.on{{border-color:var(--bdh);background:var(--gw);color:var(--ac);}}
+.src-bar::-webkit-scrollbar{{height:2px;}}.src-bar::-webkit-scrollbar-thumb{{background:var(--bd);}}
+.src-lbl{{font-family:var(--mono);font-size:8px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;flex-shrink:0;margin-right:4px;}}
+.pill{{font-family:var(--sans);font-size:10px;padding:2px 9px;border-radius:2px;border:1px solid var(--bd);color:var(--dim);cursor:pointer;transition:all .15s;flex-shrink:0;}}
+.pill:hover{{border-color:var(--ac);color:var(--ac);}}.pill.on{{border-color:var(--ac);background:var(--ac);color:#fff;}}
 
-/* MAIN */
-.main{{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 18px 20px;}}
-.main::-webkit-scrollbar{{width:4px;}}.main::-webkit-scrollbar-thumb{{background:var(--bdh);border-radius:2px;}}
-.feed-hdr{{display:flex;align-items:center;margin-bottom:10px;}}
-.feed-lbl{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--fnt);text-transform:uppercase;letter-spacing:2px;display:flex;align-items:center;gap:10px;flex:1;}}
-.feed-lbl::after{{content:'';flex:1;height:1px;background:var(--bd);min-width:20px;}}
+/* ── MAIN ── */
+.main{{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 24px 28px;}}
+.main::-webkit-scrollbar{{width:4px;}}.main::-webkit-scrollbar-thumb{{background:var(--bd);border-radius:2px;}}
 
-/* PAGINATION — bottom bar */
-.pag-footer{{
-  display:flex;align-items:center;justify-content:center;
-  gap:4px;padding:16px 0 4px;
+/* ── SECTION HEADER ── */
+.sec-hdr{{
+  display:flex;align-items:baseline;gap:12px;
+  margin-bottom:14px;padding-bottom:8px;
+  border-bottom:2px solid var(--tx);
 }}
+.sec-title{{font-family:var(--serif);font-size:13px;font-weight:700;color:var(--tx);text-transform:uppercase;letter-spacing:.12em;}}
+.sec-count{{font-family:var(--mono);font-size:10px;color:var(--muted);}}
+.sec-line{{flex:1;height:1px;background:var(--bd);}}
+
+/* ── MAGAZINE GRID ── */
+.mag-grid{{display:grid;gap:0;}}
+
+/* Hero layout: big left + 3 right */
+.hero-layout{{
+  display:grid;
+  grid-template-columns:1fr 320px;
+  grid-template-rows:auto;
+  border:1px solid var(--bd);
+  margin-bottom:16px;
+  background:var(--sf);
+}}
+.hero-main{{
+  border-right:1px solid var(--bd);
+  padding:20px 22px;
+  display:flex;flex-direction:column;gap:10px;
+}}
+.hero-cat{{font-family:var(--mono);font-size:9px;font-weight:500;color:var(--ac);letter-spacing:.15em;text-transform:uppercase;}}
+.hero-title{{font-family:var(--serif);font-size:26px;font-weight:700;line-height:1.25;color:var(--tx);}}
+.hero-title a{{color:inherit;text-decoration:none;}}
+.hero-title a:hover{{color:var(--ac);}}
+.hero-sum{{font-family:var(--sans);font-size:13px;color:var(--dim);line-height:1.65;}}
+.hero-foot{{display:flex;align-items:center;gap:10px;padding-top:6px;border-top:1px solid var(--bds);margin-top:auto;}}
+.hero-src{{font-family:var(--mono);font-size:10px;color:var(--muted);}}
+.hero-ago{{font-family:var(--mono);font-size:10px;color:var(--muted);}}
+.new-badge{{font-family:var(--mono);font-size:8px;font-weight:500;letter-spacing:.1em;color:#fff;background:var(--ac);padding:2px 6px;border-radius:2px;animation:blink 2s ease-in-out infinite;}}
+.hero-sidebar{{display:flex;flex-direction:column;}}
+.side-item{{
+  padding:14px 16px;border-bottom:1px solid var(--bd);
+  display:flex;flex-direction:column;gap:6px;flex:1;
+}}
+.side-item:last-child{{border-bottom:none;}}
+.side-cat{{font-family:var(--mono);font-size:8px;color:var(--ac);letter-spacing:.12em;text-transform:uppercase;}}
+.side-title{{font-family:var(--serif);font-size:14px;font-weight:700;line-height:1.35;color:var(--tx);}}
+.side-title a{{color:inherit;text-decoration:none;}}
+.side-title a:hover{{color:var(--ac);}}
+.side-src{{font-family:var(--mono);font-size:9px;color:var(--muted);}}
+
+/* 3-col grid for rest */
+.card-grid{{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  border:1px solid var(--bd);
+  margin-bottom:16px;
+  background:var(--sf);
+}}
+@media(max-width:900px){{.card-grid{{grid-template-columns:repeat(2,1fr);}}.hero-layout{{grid-template-columns:1fr;}}}}
+@media(max-width:600px){{.card-grid{{grid-template-columns:1fr;}}.hero-sidebar{{display:none;}}}}
+
+.art-card{{
+  padding:16px 18px;border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);
+  display:flex;flex-direction:column;gap:8px;
+  transition:background .12s;cursor:pointer;
+}}
+.art-card:hover{{background:var(--sf2);}}
+.art-card:nth-child(3n){{border-right:none;}}
+.card-cat{{font-family:var(--mono);font-size:8px;color:var(--ac);letter-spacing:.12em;text-transform:uppercase;}}
+.card-title{{font-family:var(--serif);font-size:14px;font-weight:700;line-height:1.4;color:var(--tx);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}}
+.card-title a{{color:inherit;text-decoration:none;}}
+.card-title a:hover{{color:var(--ac);}}
+.card-sum{{font-family:var(--sans);font-size:11px;color:var(--dim);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}}
+.card-foot{{display:flex;justify-content:space-between;align-items:center;padding-top:4px;border-top:1px solid var(--bds);margin-top:auto;}}
+.card-src{{font-family:var(--mono);font-size:9px;color:var(--muted);}}
+.card-ago{{font-family:var(--mono);font-size:9px;color:var(--muted);}}
+
+/* ── DIVIDER ── */
+.cat-divider{{
+  display:flex;align-items:center;gap:10px;
+  margin:20px 0 14px;
+}}
+.cat-div-label{{font-family:var(--serif);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--tx);white-space:nowrap;}}
+.cat-div-line{{flex:1;height:1px;background:var(--bd);}}
+.cat-div-n{{font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;}}
+
+/* ── PAGINATION ── */
+.pag-footer{{display:flex;align-items:center;justify-content:center;gap:4px;padding:20px 0 4px;}}
 .pg-b{{
-  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;
-  width:28px;height:28px;border-radius:6px;
+  font-family:var(--mono);font-size:10px;font-weight:500;
+  width:28px;height:28px;border-radius:3px;
   border:1px solid var(--bd);background:var(--sf);
-  color:var(--dim);cursor:pointer;transition:all .18s;
+  color:var(--dim);cursor:pointer;transition:all .15s;
   display:flex;align-items:center;justify-content:center;
 }}
-.pg-b:hover:not([disabled]){{border-color:var(--bdh);color:var(--ac);background:var(--gw);}}
-.pg-b.on{{border-color:var(--bdh);background:var(--gw);color:var(--ac);}}
+.pg-b:hover:not([disabled]){{border-color:var(--ac);color:var(--ac);}}
+.pg-b.on{{border-color:var(--ac);background:var(--ac);color:#fff;}}
 .pg-b[disabled]{{opacity:.2;cursor:default;}}
-.pg-i{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--fnt);padding:0 3px;}}
+.pg-i{{font-family:var(--mono);font-size:9px;color:var(--muted);padding:0 3px;}}
 
-/* GRID */
-.grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}}
-@media(max-width:1100px){{.grid{{grid-template-columns:repeat(2,1fr);}}}}
-@media(max-width:680px){{.grid{{grid-template-columns:1fr;}}}}
-
-/* CARD */
-.card{{
-  background:var(--sf);border:1px solid var(--bd);
-  border-left:3px solid var(--cc,var(--ac));
-  border-radius:9px;padding:14px 15px 13px;
-  transition:transform .2s,border-color .2s,box-shadow .2s;
-}}
-.card:hover{{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.45);border-color:var(--bdh);}}
-.c-top{{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}}
-.badge{{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid;white-space:nowrap;flex-shrink:0;}}
-.c-ago{{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--fnt);white-space:nowrap;padding-top:2px;}}
-.c-title{{
-  font-family:'Inter',sans-serif;font-size:13px;font-weight:600;
-  color:var(--tx);line-height:1.5;margin-bottom:7px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-}}
-.new-b{{
-  display:inline-block;font-family:'JetBrains Mono',monospace;font-size:7px;
-  font-weight:700;letter-spacing:1px;color:#fff;background:#FF3C50;
-  padding:2px 5px;border-radius:3px;margin-left:5px;vertical-align:middle;
-  animation:nb 1.6s ease-in-out infinite;
-}}
-@keyframes nb{{0%,100%{{opacity:1}}50%{{opacity:.3}}}}
-.c-sum{{
-  font-family:'Inter',sans-serif;font-size:11px;color:var(--dim);
-  line-height:1.6;margin-bottom:11px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-}}
-.c-foot{{display:flex;justify-content:space-between;align-items:center;gap:6px;}}
-.cat-p{{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;padding:2px 7px;border-radius:4px;}}
-.open-btn{{
-  font-family:'Inter',sans-serif;font-size:10px;font-weight:500;
-  color:var(--ac);text-decoration:none;padding:4px 11px;
-  border:1px solid var(--bdh);border-radius:5px;background:var(--gw);
-  transition:all .15s;
-}}
-.open-btn:hover{{background:var(--ac);color:var(--bg);}}
-
-/* ERROR PANEL */
-.err-panel{{background:rgba(255,75,110,.05);border:1px solid rgba(255,75,110,.18);border-radius:7px;overflow:hidden;margin-bottom:10px;}}
-.err-hdr{{font-family:'JetBrains Mono',monospace;font-size:10px;color:#FF4B6E;padding:7px 11px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;}}
+/* ── ERROR PANEL ── */
+.err-panel{{background:rgba(196,18,48,.05);border:1px solid rgba(196,18,48,.2);border-radius:3px;overflow:hidden;margin-bottom:12px;}}
+.err-hdr{{font-family:var(--mono);font-size:10px;color:var(--ac);padding:7px 11px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;}}
 .err-body{{padding:0 11px 7px;display:none;}}.err-body.open{{display:block;}}
-.err-line{{font-family:'JetBrains Mono',monospace;font-size:9px;color:#FF4B6E;opacity:.7;padding:2px 0;}}
-
-.empty{{grid-column:1/-1;text-align:center;padding:60px 20px;font-family:'JetBrains Mono',monospace;color:var(--fnt);font-size:11px;}}
+.err-line{{font-family:var(--mono);font-size:9px;color:var(--ac);opacity:.7;padding:2px 0;}}
+.empty{{text-align:center;padding:60px 20px;font-family:var(--serif);color:var(--muted);font-size:16px;font-style:italic;}}
 
 ::-webkit-scrollbar{{width:4px;height:4px;}}
 ::-webkit-scrollbar-track{{background:transparent;}}
-::-webkit-scrollbar-thumb{{background:var(--bdh);border-radius:2px;}}
+::-webkit-scrollbar-thumb{{background:var(--bd);border-radius:2px;}}
 </style>
 </head>
 <body>
 
-<!-- NAVBAR -->
-<nav class="nav">
-  <div class="logo"><div class="dot"></div>CYBERFEED</div>
-  <div class="stats" id="stats"></div>
-  <div class="nav-time" id="navTime">{now_str}</div>
-</nav>
+<!-- MASTHEAD -->
+<header class="masthead">
+  <div class="mast-top">
+    <div class="mast-meta" id="mastDate">{now_str}</div>
+    <div class="mast-cats">
+      <button class="mcat on" onclick="setCat('All',this)">All</button>
+      <button class="mcat" onclick="setCat('Threats',this)">Threats</button>
+      <button class="mcat" onclick="setCat('Vulnerabilities',this)">Vulnerabilities</button>
+      <button class="mcat" onclick="setCat('Breaches',this)">Breaches</button>
+      <button class="mcat" onclick="setCat('CVE',this)">CVE</button>
+      <button class="mcat" onclick="setCat('Analysis',this)">Analysis</button>
+    </div>
+    <div class="mast-meta" id="feedMeta"></div>
+  </div>
+  <div class="mast-bottom">
+    <div class="mast-side">
+      <div class="live-dot"></div>
+      <div class="live-txt">LIVE FEED</div>
+    </div>
+    <div class="logo">CYBER<span>FEED</span></div>
+    <div class="mast-side mast-side-r" id="mastStats"></div>
+  </div>
+</header>
 
 <!-- TICKER -->
 <div class="ticker">
-  <div class="t-lbl">LIVE</div>
+  <div class="t-lbl">BREAKING</div>
   <div class="t-track"><div class="t-inner" id="tInner"></div></div>
 </div>
 
@@ -360,28 +405,16 @@ select:focus{{border-color:var(--bdh);}}
     <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
       <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
     </svg>
-    <input id="si" type="text" placeholder="Search headlines, CVEs, threat actors, APTs…" autocomplete="off">
+    <input id="si" type="text" placeholder="Search headlines, CVEs, threat actors…" autocomplete="off">
   </div>
-  <select id="cs">
-    <option value="All">All Categories</option>
-    <option value="Threats">Threats</option>
-    <option value="Vulnerabilities">Vulnerabilities</option>
-    <option value="Breaches">Breaches</option>
-    <option value="CVE">CVE</option>
-    <option value="Analysis">Analysis</option>
-  </select>
   <select id="th">
-    <option value="">⬤ Midnight</option>
-    <option value="obsidian">⬤ Obsidian</option>
-    <option value="terminal">⬤ Terminal</option>
-    <option value="crimson">⬤ Crimson</option>
-    <option value="arctic">⬤ Arctic</option>
+    <option value="">⬤ Classic</option>
+    <option value="night">⬤ Night</option>
+    <option value="slate">⬤ Slate</option>
+    <option value="forest">⬤ Forest</option>
   </select>
-  <button class="btn" onclick="location.reload()">↻ REFRESH</button>
+  <button class="rbtn" onclick="location.reload()">↻ Refresh</button>
 </div>
-
-<!-- TABS -->
-<div class="tabs" id="tabs"></div>
 
 <!-- SOURCE BAR -->
 <div class="src-bar" id="srcBar"><span class="src-lbl">Sources</span></div>
@@ -389,24 +422,21 @@ select:focus{{border-color:var(--bdh);}}
 <!-- MAIN -->
 <div class="main" id="mainArea">
   <div id="errPanel"></div>
-  <div class="feed-hdr">
-    <div class="feed-lbl" id="feedLbl">Loading…</div>
-  </div>
-  <div class="grid" id="grid"></div>
+  <div id="grid"></div>
   <div class="pag-footer" id="pag"></div>
 </div>
 
 <script>
-const ALL   = {articles_json};
-const ERRS  = {errors_json};
-const FCNT  = {feed_count};
-const PER   = 15;
+const ALL  = {articles_json};
+const ERRS = {errors_json};
+const FCNT = {feed_count};
+const PER  = 18;
 
-const CAT_COLORS={{Threats:'#FF4B6E',Vulnerabilities:'#00C2FF',Breaches:'#FF8C00',CVE:'#E74C3C',Analysis:'#A78BFA'}};
-const CAT_ICO={{Threats:'🔴',CVE:'🟠',Breaches:'🟡',Vulnerabilities:'🔵',Analysis:'🟣'}};
+const CAT_ICO={{Threats:'▲',CVE:'●',Breaches:'■',Vulnerabilities:'◆',Analysis:'◀'}};
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 const S={{search:'',cat:'All',srcs:new Set(),page:0}};
+let _catBtn=document.querySelector('.mcat.on');
 
 function filtered(){{
   let a=ALL;
@@ -419,24 +449,19 @@ function filtered(){{
   return a;
 }}
 
-function renderStats(){{
+function renderMasthead(){{
   const cc={{}};ALL.forEach(a=>cc[a.cat]=(cc[a.cat]||0)+1);
   const fn=ALL.filter(a=>a.fresh).length;
-  document.getElementById('stats').innerHTML=`
-    <div class="stat"><span class="sn">${{ALL.length}}</span><span class="sl">Articles</span></div>
-    <div class="stat"><span class="sn c-g">${{FCNT-ERRS.length}}/${{FCNT}}</span><span class="sl">Feeds</span></div>
-    <div class="stat"><span class="sn c-r">${{fn}}</span><span class="sl">New 4h</span></div>
-    <div class="stat"><span class="sn c-r">${{cc.Threats||0}}</span><span class="sl">Threats</span></div>
-    <div class="stat"><span class="sn">${{cc.Vulnerabilities||0}}</span><span class="sl">Vulns</span></div>
-    <div class="stat"><span class="sn c-r">${{cc.CVE||0}}</span><span class="sl">CVE</span></div>
-    <div class="stat"><span class="sn c-a">${{cc.Breaches||0}}</span><span class="sl">Breaches</span></div>
-    <div class="stat"><span class="sn c-p">${{cc.Analysis||0}}</span><span class="sl">Analysis</span></div>`;
+  document.getElementById('mastStats').innerHTML=
+    `<span class="stat-pill"><span class="stat-n">${{ALL.length}}</span> articles</span>
+     <span class="stat-pill" style="color:var(--ac)"><span class="stat-n" style="color:var(--ac)">${{fn}}</span> new</span>`;
+  document.getElementById('feedMeta').textContent=`${{FCNT-ERRS.length}}/${{FCNT}} feeds active`;
 }}
 
 function renderTicker(){{
-  const items=ALL.slice(0,24).map(a=>{{
-    const t=a.title.length>70?a.title.slice(0,70)+'…':a.title;
-    return `<span class="t-item">${{CAT_ICO[a.cat]||'⚪'}} ${{esc(t)}}</span><span class="t-sep">·</span>`;
+  const items=ALL.slice(0,30).map(a=>{{
+    const t=a.title.length>80?a.title.slice(0,80)+'…':a.title;
+    return `<span class="t-item">${{CAT_ICO[a.cat]||'·'}} ${{esc(t)}}</span><span class="t-sep"> — </span>`;
   }}).join('');
   document.getElementById('tInner').innerHTML=items+items;
 }}
@@ -446,22 +471,10 @@ function renderErrors(){{
   if(!ERRS.length){{el.innerHTML='';return;}}
   el.innerHTML=`<div class="err-panel">
     <div class="err-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
-      ⚠ ${{ERRS.length}} feed(s) had errors
-      <span style="margin-left:auto;opacity:.5">▾</span>
+      ⚠ ${{ERRS.length}} feed(s) had errors <span style="margin-left:auto;opacity:.5">▾</span>
     </div>
-    <div class="err-body">
-      ${{ERRS.map(e=>`<div class="err-line">✗ ${{esc(e)}}</div>`).join('')}}
-    </div>
+    <div class="err-body">${{ERRS.map(e=>`<div class="err-line">✗ ${{esc(e)}}</div>`).join('')}}</div>
   </div>`;
-}}
-
-function renderTabs(){{
-  const CATS=['All','Threats','Vulnerabilities','Breaches','CVE','Analysis'];
-  const cc={{}};ALL.forEach(a=>cc[a.cat]=(cc[a.cat]||0)+1);
-  document.getElementById('tabs').innerHTML=CATS.map(c=>
-    `<div class="tab ${{S.cat===c?'on':''}}" onclick="setCat('${{c}}')">
-      ${{c}}<span class="tab-n">(${{c==='All'?ALL.length:cc[c]||0}})</span>
-    </div>`).join('');
 }}
 
 function renderSrcBar(){{
@@ -470,23 +483,39 @@ function renderSrcBar(){{
     srcs.map(s=>`<span class="pill ${{S.srcs.has(s)?'on':''}}" onclick="toggleSrc('${{esc(s)}}')">${{esc(s)}}</span>`).join('');
 }}
 
-function cardHTML(a){{
-  const c=a.color,cc=CAT_COLORS[a.cat]||'#888';
-  const nb=a.fresh?'<span class="new-b">NEW</span>':'';
-  return `<div class="card" style="--cc:${{c}}">
-  <div class="c-top">
-    <div class="badge" style="color:${{c}};border-color:${{c}}44;background:${{c}}14">
-      ${{a.icon}} ${{esc(a.src)}}
+function heroHTML(a){{
+  const nb=a.fresh?'<span class="new-badge">NEW</span>':'';
+  return `<div class="hero-main">
+    <div class="hero-cat">${{CAT_ICO[a.cat]||'·'}} ${{a.cat}}</div>
+    <div class="hero-title"><a href="${{esc(a.url)}}" target="_blank" rel="noopener">${{esc(a.title)}}</a> ${{nb}}</div>
+    <div class="hero-sum">${{esc(a.summary)||''}}</div>
+    <div class="hero-foot">
+      <span class="hero-src">${{esc(a.src)}}</span>
+      <span style="color:var(--bd)">·</span>
+      <span class="hero-ago">${{esc(a.ago)}}</span>
     </div>
-    <div class="c-ago">${{esc(a.ago)}}</div>
-  </div>
-  <div class="c-title">${{esc(a.title)}}${{nb}}</div>
-  <div class="c-sum">${{esc(a.summary)||'No summary.'}}</div>
-  <div class="c-foot">
-    <span class="cat-p" style="color:${{cc}};background:${{cc}}18">${{a.cat}}</span>
-    <a class="open-btn" href="${{esc(a.url)}}" target="_blank" rel="noopener">↗ Open</a>
-  </div>
-</div>`;
+  </div>`;
+}}
+
+function sideItemHTML(a){{
+  return `<div class="side-item">
+    <div class="side-cat">${{a.cat}}</div>
+    <div class="side-title"><a href="${{esc(a.url)}}" target="_blank" rel="noopener">${{esc(a.title)}}</a></div>
+    <div class="side-src">${{esc(a.src)}} · ${{esc(a.ago)}}</div>
+  </div>`;
+}}
+
+function cardHTML(a){{
+  const nb=a.fresh?'<span class="new-badge" style="font-size:7px;margin-left:4px">NEW</span>':'';
+  return `<div class="art-card">
+    <div class="card-cat">${{CAT_ICO[a.cat]||'·'}} ${{a.cat}}</div>
+    <div class="card-title"><a href="${{esc(a.url)}}" target="_blank" rel="noopener">${{esc(a.title)}}</a>${{nb}}</div>
+    <div class="card-sum">${{esc(a.summary)||''}}</div>
+    <div class="card-foot">
+      <span class="card-src">${{esc(a.src)}}</span>
+      <span class="card-ago">${{esc(a.ago)}}</span>
+    </div>
+  </div>`;
 }}
 
 function renderPag(total){{
@@ -510,27 +539,67 @@ function renderPag(total){{
 
 function renderGrid(){{
   const arts=filtered();
-  let lbl=`${{arts.length}} articles`;
-  if(S.search)lbl+=` · "${{esc(S.search)}}"`;
-  if(S.cat!=='All')lbl+=` · ${{S.cat}}`;
-  if(S.srcs.size)lbl+=` · ${{S.srcs.size}} source(s)`;
-  document.getElementById('feedLbl').textContent=lbl;
   renderPag(arts.length);
   const page=arts.slice(S.page*PER,(S.page+1)*PER);
+  const el=document.getElementById('grid');
   if(!page.length){{
-    document.getElementById('grid').innerHTML='<div class="empty">📡<br><br>No articles match your filters.</div>';
+    el.innerHTML='<div class="empty">No articles match your filters.</div>';
     return;
   }}
-  document.getElementById('grid').innerHTML=page.map(cardHTML).join('');
+
+  let html='';
+
+  // First page: hero layout (first 4 articles)
+  if(S.page===0&&page.length>=4){{
+    const [hero,...rest]=page;
+    const sidebar=rest.slice(0,3);
+    const remaining=rest.slice(3);
+
+    html+=`<div class="sec-hdr">
+      <span class="sec-title">${{S.cat==='All'?'Latest Intelligence':S.cat}}</span>
+      <span class="sec-line"></span>
+      <span class="sec-count">${{arts.length}} articles</span>
+    </div>`;
+
+    html+=`<div class="hero-layout">
+      ${{heroHTML(hero)}}
+      <div class="hero-sidebar">${{sidebar.map(sideItemHTML).join('')}}</div>
+    </div>`;
+
+    if(remaining.length){{
+      html+=`<div class="cat-divider">
+        <span class="cat-div-line"></span>
+        <span class="cat-div-label">More Reports</span>
+        <span class="cat-div-line"></span>
+      </div>`;
+      html+=`<div class="card-grid">${{remaining.map(cardHTML).join('')}}</div>`;
+    }}
+  }} else {{
+    html+=`<div class="sec-hdr">
+      <span class="sec-title">${{S.cat==='All'?'Intelligence Feed':S.cat}}</span>
+      <span class="sec-line"></span>
+      <span class="sec-count">Page ${{S.page+1}} · ${{arts.length}} articles</span>
+    </div>`;
+    html+=`<div class="card-grid">${{page.map(cardHTML).join('')}}</div>`;
+  }}
+
+  el.innerHTML=html;
 }}
 
-function setCat(c){{S.cat=c;S.page=0;renderTabs();renderGrid();}}
+function setCat(c,btn){{
+  S.cat=c;S.page=0;
+  if(_catBtn)_catBtn.classList.remove('on');
+  if(btn){{btn.classList.add('on');_catBtn=btn;}}
+  renderGrid();
+}}
+
 function goPage(p){{
   const arts=filtered();
   S.page=Math.max(0,Math.min(p,Math.ceil(arts.length/PER)-1));
   renderGrid();
   document.getElementById('mainArea').scrollTop=0;
 }}
+
 function toggleSrc(s){{
   S.srcs.has(s)?S.srcs.delete(s):S.srcs.add(s);
   S.page=0;renderSrcBar();renderGrid();
@@ -539,22 +608,21 @@ function toggleSrc(s){{
 document.getElementById('th').addEventListener('change',function(){{
   document.body.className=this.value;
 }});
+
 let q_t;
 document.getElementById('si').addEventListener('input',function(){{
   clearTimeout(q_t);
   q_t=setTimeout(()=>{{S.search=this.value;S.page=0;renderGrid();}},200);
 }});
-document.getElementById('cs').addEventListener('change',function(){{
-  S.cat=this.value;S.page=0;renderTabs();renderGrid();
-}});
+
 setInterval(()=>{{
   const n=new Date();
-  document.getElementById('navTime').textContent=
-    n.toLocaleDateString('en-GB',{{day:'2-digit',month:'short',year:'numeric'}})+' '+
+  document.getElementById('mastDate').textContent=
+    n.toLocaleDateString('en-GB',{{day:'2-digit',month:'short',year:'numeric'}})+' · '+
     n.toLocaleTimeString('en-GB',{{hour:'2-digit',minute:'2-digit'}});
 }},15000);
 
-renderStats();renderTicker();renderErrors();renderTabs();renderSrcBar();renderGrid();
+renderMasthead();renderTicker();renderErrors();renderSrcBar();renderGrid();
 </script>
 </body>
 </html>"""
