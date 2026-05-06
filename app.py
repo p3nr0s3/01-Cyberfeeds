@@ -54,7 +54,7 @@ FEEDS = [
     dict(name="Google Project Zero",  url="https://googleprojectzero.blogspot.com/feeds/posts/default",   cat="Vulnerabilities",  color="#4285F4", icon="⓪"),
     dict(name="Malwarebytes Labs",     url="https://www.malwarebytes.com/blog/feed/",                      cat="Threats",         color="#D35400", icon="🦠"),
     dict(name="WeLiveSecurity",       url="https://www.welivesecurity.com/feed/",                         cat="Analysis",        color="#16A085", icon="🛡️"),
-    dict(name="NIST NVD",             url="https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-recent.json.gz", cat="CVE",             color="#C0392B", icon="📋"),
+    dict(name="CISA",             url="https://www.cisa.gov/news-events/cybersecurity-advisories/all.xml", cat="CVE",             color="#C0392B", icon="📋"),
     dict(name="Exploit-DB",           url="https://www.exploit-db.com/rss.xml",                           cat="CVE",             color="#922B21", icon="💥"),
     dict(name="Troy Hunt",            url="https://www.troyhunt.com/rss/",                                cat="Breaches",        color="#E91E63", icon="🔓"),
     dict(name="Graham Cluley",        url="https://grahamcluley.com/feed/",                               cat="Breaches",        color="#607D8B", icon="📰"),
