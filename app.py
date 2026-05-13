@@ -10,6 +10,9 @@ from datetime import datetime, timezone
 import re
 import concurrent.futures
 import json
+import os
+import hashlib
+from telegram import Bot
 
 st.set_page_config(
     page_title="CyberFeed",
@@ -62,6 +65,13 @@ FEEDS = [
     dict(name="Threatpost",           url="https://threatpost.com/feed/",                                 cat="Threats",         color="#E67E22", icon="⚠️"),
     dict(name="HackerOne",            url="https://hackerone.com/hacktivity.rss",                         cat="CVE",             color="#FF6B35", icon="🏆"),
 ]
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+
+bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
+
+CACHE_FILE = "sent_articles.json"
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def parse_date(entry):
@@ -117,6 +127,56 @@ def fetch_all():
             errs.append(f"{futs[f]}: timeout"); f.cancel()
     arts.sort(key=lambda x:x["ts"],reverse=True)
     return arts,errs
+   
+    def load_sent():
+    try:
+        with open(CACHE_FILE, "r") as f:
+            return set(json.load(f))
+    except:
+        return set()
+
+    def save_sent(sent):
+    with open(CACHE_FILE, "w") as f:
+        json.dump(list(sent), f)
+
+    def article_hash(article):
+    return hashlib.md5(article["url"].encode()).hexdigest()
+
+    def send_to_telegram(articles):
+    if not bot or not CHAT_ID:
+        return
+
+    sent = load_sent()
+
+    for article in articles[:10]:
+        h = article_hash(article)
+
+        if h in sent:
+            continue
+
+        msg = f"""
+🛡️ {article['cat']}
+
+{article['title']}
+
+Source: {article['src']}
+Published: {article['ago']}
+
+{article['url']}
+"""
+
+        try:
+            bot.send_message(
+                chat_id=CHAT_ID,
+                text=msg
+            )
+
+            sent.add(h)
+
+        except Exception as e:
+            print("Telegram Error:", e)
+
+    save_sent(sent)
 
 with st.spinner("Fetching security feeds…"):
     articles, errors = fetch_all()
