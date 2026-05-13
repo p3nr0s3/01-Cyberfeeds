@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 import re
 import concurrent.futures
 import json
-import os
 import hashlib
 from telegram import Bot
 
@@ -66,10 +65,10 @@ FEEDS = [
     dict(name="HackerOne",            url="https://hackerone.com/hacktivity.rss",                         cat="CVE",             color="#FF6B35", icon="🏆"),
 ]
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+BOT_TOKEN = st.secrets["BOT_TOKEN"]
+CHAT_ID = st.secrets["CHAT_ID"]
 
-bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
+bot = Bot(token=BOT_TOKEN)
 
 CACHE_FILE = "sent_articles.json"
 
@@ -117,35 +116,45 @@ def fetch_one(feed):
 @st.cache_data(ttl=300,show_spinner=False)
 def fetch_all():
     arts,errs=[],[]
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
         futs={pool.submit(fetch_one,f):f["name"] for f in FEEDS}
         done,pending=concurrent.futures.wait(futs,timeout=20)
+
         for f in done:
-            items,err=f.result(); arts.extend(items)
-            if err: errs.append(err)
+            items,err=f.result()
+            arts.extend(items)
+
+            if err:
+                errs.append(err)
+
         for f in pending:
-            errs.append(f"{futs[f]}: timeout"); f.cancel()
+            errs.append(f"{futs[f]}: timeout")
+            f.cancel()
+
     arts.sort(key=lambda x:x["ts"],reverse=True)
+
     return arts,errs
-   
-    def load_sent():
+
+
+def load_sent():
     try:
         with open(CACHE_FILE, "r") as f:
             return set(json.load(f))
     except:
         return set()
 
-    def save_sent(sent):
+
+def save_sent(sent):
     with open(CACHE_FILE, "w") as f:
         json.dump(list(sent), f)
 
-    def article_hash(article):
+
+def article_hash(article):
     return hashlib.md5(article["url"].encode()).hexdigest()
 
-    def send_to_telegram(articles):
-    if not bot or not CHAT_ID:
-        return
 
+def send_to_telegram(articles):
     sent = load_sent()
 
     for article in articles[:10]:
@@ -180,7 +189,9 @@ Published: {article['ago']}
 
 with st.spinner("Fetching security feeds…"):
     articles, errors = fetch_all()
-
+    
+if BOT_TOKEN and CHAT_ID:
+    send_to_telegram(articles)
 import streamlit.components.v1 as components
 
 now_str       = datetime.now().strftime("%d %b %Y %H:%M")
