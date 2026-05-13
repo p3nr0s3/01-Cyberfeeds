@@ -176,8 +176,8 @@ Published: {article['ago']}
 
         try:
             bot.send_message(
-                chat_id=CHAT_ID,
-                text=msg
+            chat_id=str(CHAT_ID),
+            text=msg
             )
 
             sent.add(h)
